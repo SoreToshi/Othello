@@ -1,0 +1,26 @@
+﻿
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>@ViewData["Title"] - MyOthelloWeb</title>
+
+
+
+    <!--
+        移植元で消してみた所問題なく動いてそうでした。
+        探してもstyle.cssは見つからないです。実行時にできるもの？
+        これを消すとindex.cshtml.cssが効かないです。
+    -->
+    <link rel="stylesheet" href="~/MyOthelloWeb.styles.css" asp-append-version="true" />
+</head>
+
+
+<body>
+    @RenderBody()
+</body>
+</html>

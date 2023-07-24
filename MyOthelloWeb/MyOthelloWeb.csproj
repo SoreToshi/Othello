@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Formatters\NewFile.txt" />
+    <None Remove="Models\NewFile.txt" />
+    <None Remove="Models\OthelloManager" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DeepCopy" Version="1.0.3" />
+  </ItemGroup>
+
+</Project>

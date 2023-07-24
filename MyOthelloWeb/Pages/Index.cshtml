@@ -1,0 +1,221 @@
+﻿@page
+@using Models;
+
+@model IndexModel
+@{
+    ViewData["Title"] = "Home page";
+
+    var StringOfTurn = Model.Turn == Turn.First ? "先手" : "後手";
+
+    String OthelloThemeColor;
+    switch (Model.ThemeColor)
+    {
+        case ThemeColor.Default:
+            OthelloThemeColor = "default";
+            break;
+        case ThemeColor.Dango:
+            OthelloThemeColor = "dango";
+            break;
+        case ThemeColor.Sakura:
+            OthelloThemeColor = "sakura";
+            break;
+        case ThemeColor.Ice:
+            OthelloThemeColor = "ice";
+            break;
+        default:
+            OthelloThemeColor = "存在しません";
+            break;
+    }
+
+}
+
+<div class="othello-board-wrapper @OthelloThemeColor">
+    <div class="othello-information">
+        @if (Model.GameState == GameState.SelectSide)
+        {
+            <div class="select-side-space back-ground4">
+                <div id="selectfirst" class="border3">
+                    Play First
+                </div>
+                <div id="select-second">Play Second</div>
+            </div>
+        }
+        @if (Model.GameState == GameState.MatchRemaining || Model.GameState == GameState.SelectSide)
+        {
+            <div class="othello-information-inside1 border2 back-ground1">
+                <div>現在のターン</div>
+                <div>@StringOfTurn</div>
+            </div>
+        }
+        else if (Model.GameState == GameState.MatchRetired)
+        {
+            <div class="othello-information-inside3 border2 back-ground1">
+                <div class="information-items">@(Model.Turn == Turn.First ? "後手の勝ち" : "先手の勝ち")</div>
+                <div>&nbsp;</div>
+                <div class="information-items">@(Model.Turn == Turn.First ? "先手" : "後手")がリタイアしました</div>
+            </div>
+        }
+        else if (Model.GameState == GameState.MatchOver)
+        {
+            <div class="othello-information-inside3 border2 back-ground1">
+                <div class="information-items">
+                    @(
+                        Model.NumberOfBlackPiece > Model.NumberOfWhitePiece ?
+                        $"{Model.NumberOfBlackPiece - Model.NumberOfWhitePiece}" :
+                        $"{Model.NumberOfWhitePiece - Model.NumberOfBlackPiece}"
+                        )枚差で
+                </div>
+                <div>&nbsp;</div>
+                <div class="information-items">
+                    @if (Model.NumberOfBlackPiece == Model.NumberOfWhitePiece)
+                    {
+                        @:引き分け
+                    }
+                    else if (Model.NumberOfBlackPiece > Model.NumberOfWhitePiece)
+                    {
+                        @:先手の勝ち
+                    }
+                    else
+                    {
+                        @:後手の勝ち
+                    }
+                </div>
+            </div>
+        }
+
+
+        @if (Model.GameState == GameState.MatchOver || Model.GameState == GameState.MatchRetired)
+        {
+            <div class="othello-information-inside1 back-ground4 border2">
+                <div class="restart-quit-items" onclick="() => RestartOthello()">
+                    もう一度対戦
+                </div>
+            </div>
+        }
+        else if (Model.GameState == GameState.MatchRemaining || Model.GameState == GameState.SelectSide)
+        {
+            <ul class="othello-information-inside2 border2 back-ground1">
+                @for (var i = 0; i < Model.LogOfGame.Count; i++)
+                {
+                    var numberOfLog = i;
+                    var logOfGame = Model.LogOfGame[numberOfLog];
+                    <li class="log-items" onclick="() => BackFromLog(numberOfLog)">
+                        @(logOfGame.Turn == Turn.First ? "先手が" : "後手が")
+                        @(logOfGame.IsPass == true ? "パスしました" : $"[{logOfGame.Point.Y + 1},{logOfGame.Point.X + 1}]に石を置きました")
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+    <div class="othello-board">
+        @foreach (var (piece, squareNumber) in Model.Pieces)
+        {
+            @if (piece == null)
+            {
+                @if (Model.SquareNumberListCanBePut.Contains(squareNumber))
+                {
+                    <div class="back-ground5 border put-piece" data-number="@squareNumber"></div>
+                }
+                else
+                {
+                    <div class="border put-piece" data-number="@squareNumber"></div>
+                }
+            }
+            else
+            {
+                @if (piece.Side == Side.Black)
+                {
+                    <div class="border">
+                        <div class="first-piece"></div>
+                    </div>
+                }
+                else
+                {
+                    <div class="border">
+                        <div class="second-piece"></div>
+                    </div>
+                }
+            }
+        }
+    </div>
+    <div class="othello-information">
+        <div class="number-of-piece-space border4 back-ground2">
+            <div class="piece-color">先手</div>
+            <div class="number-of-piece">@Model.NumberOfBlackPiece 枚</div>
+        </div>
+        <div class="number-of-piece-space border4 back-ground3">
+            <div class="piece-color">後手</div>
+            <div class="number-of-piece">@Model.NumberOfWhitePiece 枚</div>
+        </div>
+        <div class="change-color-space back-ground4 border4">
+            @foreach (var themeColor in Model.ThemeColorList)
+            {
+                <div class="select-color" data-color="@themeColor">@Model.ThemeColorString(themeColor)</div>
+            }
+        </div>
+        <div class="retire-restart-space back-ground4 border4" onclick="() => Model.RetireMatch()">リタイア</div>
+        <div class="retire-restart-space back-ground4 border4" onclick="() => Model.RestartOthello()">リスタート</div>
+    </div>
+</div>
+<div id="reload-page">reload</div>
+<button id="download">
+    Download File From Stream
+</button>
+
+<InputFile OnChange="Model.LoadLogFile()" />
+
+<script>
+
+    function selectColor(event) {
+        fetch(`https://localhost:7146/api/selectcolor/${event.target.dataset.color}`, { method: 'POST' })
+            .then(response => {
+                if (!response.ok) {
+                    console.log('response error')
+                }
+            })
+            .catch(e => console.log(e))
+    }
+    var select_color_e = document.getElementsByClassName('select-color');
+    for (i = 0; i < @Model.ThemeColorList.Count; i++) {
+        select_color_e[i].addEventListener('click', selectColor, false);
+    }
+
+    function startSecond() {
+        fetch('https://localhost:7146/api/startsecond', { method: 'POST' })
+            .then(response => {
+                if (!response.ok) {
+                    console.log('response error')
+                }
+            })
+            .catch(e => console.log(e))
+    }
+    var select_second_e = document.getElementById('select-second');
+    if (select_second_e != null) {
+        select_second_e.addEventListener('click', startSecond, false);
+    }
+
+    function putPiece(event) {
+        fetch(`https://localhost:7146/api/putpiece/${event.target.dataset.number}`, { method: 'POST' })
+            .then(response => {
+                if (!response.ok) {
+                    console.log('response error');
+                    return;
+                }
+                setTimeout(() => { window.location.reload(); }, 1300)
+            })
+            .catch(e => console.log(e))
+    }
+    var put_piece_e = document.getElementsByClassName('put-piece');
+    for (i = 0; i < @Model.CountOfEmptyPoint; i++) {
+        if (put_piece_e != null) {
+            put_piece_e[i].addEventListener('click', putPiece, false);
+        }
+    }
+
+    function reload() {
+        location.reload();
+    }
+    var reload_e = document.getElementById('reload-page');
+    reload_e.addEventListener('click', reload, false);
+
+</script>
