@@ -1,11 +1,13 @@
-﻿using MyOthelloWeb.Models;
-using System.Drawing;
+﻿using System.Drawing;
 using DeepCopy;
 using System.Xml.Schema;
 using System.Collections.Generic;
 using System.Security.Cryptography.X509Certificates;
+using System;
+using System.Threading.Tasks;
+using System.Linq;
 
-namespace MyOthelloWeb.Models
+namespace OthelloClassLibrary.Models
 {
     public class Cpu : IPlayer
     {
@@ -50,7 +52,6 @@ namespace MyOthelloWeb.Models
                 }
             }
         }
-
         public async Task<Point> RequestPutPiece(OthelloBoard othelloBoard)
         {
             await Task.Delay(1000); // millisec

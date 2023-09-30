@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.JSInterop;
-using MyOthelloWeb.Models;
+using OthelloClassLibrary.Models;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -13,7 +13,7 @@ namespace MyOthelloWeb.Pages
     public class IndexModel : PageModel
     {
         private readonly Int32 BoardSize;
-        private MyOthelloModel Othello;
+        public MyOthelloModel Othello;
         private readonly IJSRuntime JS;
 
         public ThemeColor ThemeColor

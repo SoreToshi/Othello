@@ -1,5 +1,5 @@
 ﻿@page
-@using Models;
+@using OthelloClassLibrary.Models;
 
 @model IndexModel
 @{
@@ -217,5 +217,20 @@
     }
     var reload_e = document.getElementById('reload-page');
     reload_e.addEventListener('click', reload, false);
+
+    function download() {
+        fetch(`https://localhost:7146/api/download`, { method: 'POST' })
+            .then(response => {
+                if (!response.ok) {
+                    console.log('response error');
+                    return;
+                }
+            })
+            .catch(e => console.log(e))
+    }
+    var select_second_e = document.getElementById('download');
+    if (select_second_e != null) {
+        select_second_e.addEventListener('click', download, false);
+    }
 
 </script>

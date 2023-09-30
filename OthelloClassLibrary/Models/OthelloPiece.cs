@@ -1,4 +1,4 @@
-﻿namespace MyOthelloWeb.Models
+﻿namespace OthelloClassLibrary.Models
 {
     public enum Side { Black, White }
 

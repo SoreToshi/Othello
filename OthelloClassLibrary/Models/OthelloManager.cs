@@ -1,6 +1,7 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using System.Runtime.CompilerServices;
 
-namespace MyOthelloWeb.Models {
+namespace OthelloClassLibrary.Models {
     public class OthelloManager {
         public static Int32 BoardSize = 8;
         public static MyOthelloModel Instance = new MyOthelloModel(BoardSize, ThemeColor.Default);

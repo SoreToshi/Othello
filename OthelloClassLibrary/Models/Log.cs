@@ -1,6 +1,8 @@
-﻿using System.Drawing;
+﻿using System;
+using System.Collections.Generic;
+using System.Drawing;
 
-namespace MyOthelloWeb.Models
+namespace OthelloClassLibrary.Models
 {
     public class Log
     {

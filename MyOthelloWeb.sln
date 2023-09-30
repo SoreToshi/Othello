@@ -5,7 +5,9 @@ VisualStudioVersion = 17.5.33424.131
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MyOthelloWeb", "MyOthelloWeb\MyOthelloWeb.csproj", "{308A7E35-188A-4FD7-879F-FB737234B0C0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyOthelloClient", "MyOthelloClient\MyOthelloClient.csproj", "{C7220932-9B66-4872-865D-04F097AB0D37}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MyOthelloClient", "MyOthelloClient\MyOthelloClient.csproj", "{C7220932-9B66-4872-865D-04F097AB0D37}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OthelloClassLibrary", "OthelloClassLibrary\OthelloClassLibrary.csproj", "{FC86F357-24CD-4CDD-900C-F2B090843CE7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{C7220932-9B66-4872-865D-04F097AB0D37}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C7220932-9B66-4872-865D-04F097AB0D37}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C7220932-9B66-4872-865D-04F097AB0D37}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FC86F357-24CD-4CDD-900C-F2B090843CE7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FC86F357-24CD-4CDD-900C-F2B090843CE7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FC86F357-24CD-4CDD-900C-F2B090843CE7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FC86F357-24CD-4CDD-900C-F2B090843CE7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

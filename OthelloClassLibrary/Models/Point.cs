@@ -1,6 +1,7 @@
-﻿using System.Reflection.Metadata;
+﻿using System;
+using System.Collections.Generic;
 
-namespace MyOthelloWeb.Models
+namespace OthelloClassLibrary.Models
 {
     public class Point
     {

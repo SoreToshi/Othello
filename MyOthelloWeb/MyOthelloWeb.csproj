@@ -8,12 +8,15 @@
 
   <ItemGroup>
     <None Remove="Formatters\NewFile.txt" />
-    <None Remove="Models\NewFile.txt" />
-    <None Remove="Models\OthelloManager" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="DeepCopy" Version="1.0.3" />
+    <PackageReference Include="NLog" Version="5.2.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OthelloClassLibrary\OthelloClassLibrary.csproj" />
   </ItemGroup>
 
 </Project>

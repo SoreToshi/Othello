@@ -1,13 +1,12 @@
-﻿using System.Drawing;
-using System.Numerics;
-using System.Runtime.Intrinsics;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 
-namespace MyOthelloWeb.Models
+namespace OthelloClassLibrary.Models
 {
     public class OthelloBoard
     {
         public OthelloPiece[,] OthelloPieceMatrix { get; set; }
-
         public Int32 XLength
         {
             get
@@ -62,7 +61,6 @@ namespace MyOthelloWeb.Models
             side = side.ReverseSide();
             return this.FindEnemyPointList(side).Count;
         }
-
         public IList<Int32> FindSquareNumberListCanBePut(Side side)
         {
             return this.FindEnemyArroundEmptyPointList(side)

@@ -1,9 +1,12 @@
-﻿using System.Drawing;
+﻿using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
 using static System.Net.Mime.MediaTypeNames;
 
-namespace MyOthelloWeb.Models
+namespace OthelloClassLibrary.Models
 {
     public class MyOthelloModel
     {
@@ -69,7 +72,6 @@ namespace MyOthelloWeb.Models
                 return this.Turn == Turn.First ? PlayerFirst : PlayerSecond;
             }
         }
-
         public IList<Int32> SquareNumberListCanbePut
         {
             get
@@ -165,8 +167,6 @@ namespace MyOthelloWeb.Models
             }
             this.GameState = gameState;
         }
-
-        // ここでインスタンスのなかのプレイヤー、ゲームステートをセットできていないので調べます。
         public void ReCreateOthelloSituation(IList<LogOfGame> previousLogOfGame, IPlayer previousPlayerFirst, IPlayer previousPlayerSecond)
         {
             if (previousLogOfGame.Count == 0)
@@ -174,19 +174,14 @@ namespace MyOthelloWeb.Models
                 this.SetPlayer(previousPlayerFirst);
                 this.SetPlayer(previousPlayerSecond);
 
-                //OthelloManager.Instance.SetPlayer(previousPlayerFirst);
-                //OthelloManager.Instance.SetPlayer(previousPlayerSecond);
-
                 this.ChangeGameState(GameState.MatchRemaining);
-
-                // OthelloManager.Instance.ChangeGameState(GameState.MatchRemaining);
 
                 return;
             }
+
             this.SetPlayer(new Human(Turn.First));
             this.SetPlayer(new Human(Turn.Second));
             this.ChangeGameState(GameState.MatchRemaining);
-
             foreach (var log in previousLogOfGame)
             {
                 if (log == previousLogOfGame.Last())

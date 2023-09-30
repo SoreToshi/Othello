@@ -1,0 +1,173 @@
+﻿@using OthelloClassLibrary.Models;
+@page "/"
+@inject IJSRuntime JS
+
+@code {
+    private String StringOfTurn
+    {
+        get
+        {
+            return Othello.Turn == Turn.First ? "先手" : "後手";
+        }
+    }
+
+
+    private String ThemeColorString(ThemeColor themeColor)
+    {
+        switch (themeColor)
+        {
+            case ThemeColor.Default:
+                return "デフォルト";
+            case ThemeColor.Dango:
+                return "ダンゴ";
+            case ThemeColor.Sakura:
+                return "サクラ";
+            case ThemeColor.Ice:
+                return "アイス";
+            default:
+                return "存在しません";
+        }
+    }
+}
+
+<div class="othello-board-wrapper @OthelloTheme">
+    <div class="othello-information">
+        @if (GameState == GameState.SelectSide)
+        {
+            <div class="select-side-space back-ground4">
+                <div class="border3" @onclick="() => StartGame(new Human(Turn.First))">Play First</div>
+                <div @onclick="() => StartGame(new Human(Turn.Second))">Play Second</div>
+            </div>
+        }
+        @if (GameState == GameState.MatchRemaining || GameState == GameState.SelectSide)
+        {
+            <div class="othello-information-inside1 border2 back-ground1">
+                <div>現在のターン</div>
+                <div>@StringOfTurn</div>
+            </div>
+        }
+        else if (GameState == GameState.MatchRetired)
+        {
+            <div class="othello-information-inside3 border2 back-ground1">
+                <div class="information-items">@(Othello.Turn == Turn.First ? "後手の勝ち" : "先手の勝ち")</div>
+                <div>&nbsp;</div>
+                <div class="information-items">@(Othello.Turn == Turn.First ? "先手" : "後手")がリタイアしました</div>
+            </div>
+        }
+        else if (GameState == GameState.MatchOver)
+        {
+            <div class="othello-information-inside3 border2 back-ground1">
+                <div class="information-items">
+                    @(
+                        NumberOfBlackPiece > NumberOfWhitePiece ?
+                        $"{NumberOfBlackPiece - NumberOfWhitePiece}" :
+                        $"{NumberOfWhitePiece - NumberOfBlackPiece}"
+                        )枚差で
+                </div>
+                <div>&nbsp;</div>
+                <div class="information-items">
+                    @if (NumberOfBlackPiece == NumberOfWhitePiece)
+                    {
+                        @:引き分け
+                    }
+                    else if (NumberOfBlackPiece > NumberOfWhitePiece)
+                    {
+                        @:先手の勝ち
+                    }
+                    else
+                    {
+                        @:後手の勝ち
+                    }
+                </div>
+            </div>
+        }
+
+
+        @if (GameState == GameState.MatchOver || GameState == GameState.MatchRetired)
+        {
+            <div class="othello-information-inside1 back-ground4 border2">
+                <div class="restart-quit-items" @onclick="() => RestartOthello()">
+                    もう一度対戦
+                </div>
+            </div>
+        }
+        else if (GameState == GameState.MatchRemaining || GameState == GameState.SelectSide)
+        {
+            <ul class="othello-information-inside2 border2 back-ground1">
+                @for (var i = 0; i < LogOfGame.Count; i++)
+                {
+                    var numberOfLog = i;
+                    var logOfGame = LogOfGame[numberOfLog];
+                    <li class="log-items" @onclick="() => BackFromLog(numberOfLog)">
+                        @(logOfGame.Turn == Turn.First ? "先手が": "後手が")
+                        @(logOfGame.IsPass == true ? "パスしました" : $"[{logOfGame.Point.Y + 1},{logOfGame.Point.X + 1}]に石を置きました")
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+    <div class="othello-board">
+        @foreach (var (piece, squareNumber) in Pieces)
+        {
+            @if (piece == null)
+            {
+                @if (SquareNumberListCanBePut.Contains(squareNumber))
+                {
+                    <div class="back-ground5 border5" @onclick="() => PutPiece(squareNumber)"></div>
+                }
+                else
+                {
+                    <div class="border5"></div>
+                }
+            }
+            else
+            {
+                @if (piece.Side == Side.Black)
+                {
+                    <div class="border5">
+                        <div class="first-piece"></div>
+                    </div>
+                }
+                else
+                {
+                    <div class="border5">
+                        <div class="second-piece"></div>
+                    </div>
+                }
+            }
+        }
+    </div>
+    <div class="othello-information">
+        <div class="number-of-piece-space border4 back-ground2">
+            <div class="piece-color">先手</div>
+            <div class="number-of-piece">@NumberOfBlackPiece 枚</div>
+        </div>
+        <div class="number-of-piece-space border4 back-ground3">
+            <div class="piece-color">後手</div>
+            <div class="number-of-piece">@NumberOfWhitePiece 枚</div>
+        </div>
+        <div class="change-color-space back-ground4 border4">
+            @foreach (var themeColor in ThemeColorList)
+            {
+                <div @onclick="() => ChangeTheme(themeColor)">@ThemeColorString(themeColor)</div>
+            }
+        </div>
+        <div class="retire-restart-space back-ground4 border4" @onclick="() => RetireMatch()">リタイア</div>
+        <div class="retire-restart-space back-ground4 border4" @onclick="() => RestartOthello()">リスタート</div>
+    </div>
+</div>
+
+<button @onclick="DownloadFileFromStream">
+    Download File From Stream
+</button>
+<button @onclick="() => FugaLoad(SearchLogOnTheServer())">
+    Find Log From Server
+</button>
+<button @onclick="() => StateHasChangedForTest()">
+    StateHasChanged
+</button>
+<button @onclick="() => PollingToReflectServerSituation()">
+    Polling
+</button>
+
+<InputFile OnChange="@UpLoadLogFile" />
