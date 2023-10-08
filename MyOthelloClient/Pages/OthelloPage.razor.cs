@@ -1,20 +1,8 @@
-﻿using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Forms;
-using Microsoft.JSInterop;
+﻿using Microsoft.AspNetCore.Components.Forms;
 using OthelloClassLibrary.Models;
-using System;
-using System.IO;
-using System.Net.Mime;
-using System.Reflection.Metadata;
-using System.Security.AccessControl;
 using System.Text;
-using static System.Net.Mime.MediaTypeNames;
-using System.Net.Http;
-using System.Text.Json.Serialization;
-using System.Net.Http.Json;
+using System.Text.Json;
 using Timer = System.Timers.Timer;
-using System.Reflection.Metadata.Ecma335;
-using System.Runtime.Serialization;
 
 namespace MyOthelloClient.Pages
 {
@@ -76,6 +64,9 @@ namespace MyOthelloClient.Pages
 
         private event Action OnLoadLogFileEvent;
         private event Action<IPlayer> StartGameEvent;
+        private event Action<GameState> RetireGameEvent;
+        private event Action<GameState> RestartServerOthelloEvent;
+        private event Action<GameState> RestartClientOthelloEvent;
 
         public OthelloPage()
         {
@@ -83,6 +74,9 @@ namespace MyOthelloClient.Pages
             this.Othello = OthelloManager.Instance;
             this.Othello.TurnEndEvent += this.StateHasChanged;
             this.OnLoadLogFileEvent += this.StateHasChanged;
+            this.RetireGameEvent += (gameState) => this.StateHasChanged();
+            this.RestartServerOthelloEvent += (gameState) => this.ChangeStateToTheStartingPoint();
+            this.RestartClientOthelloEvent += (gameState) => this.StateHasChanged();
             this.StartGameEvent += (player) => this.PollingToReflectServerSituation();
         }
 
@@ -94,60 +88,63 @@ namespace MyOthelloClient.Pages
                 queryTurn = "second";
             }
             var client = new MyHttpClinet();
-            string url = $"https://localhost:7146/api/fugastart{queryTurn}";
+            string url = $"https://localhost:7146/api/start{queryTurn}";
 
             await client.GetAsync(url);
             this.StartGameEvent(player);
         }
         private async void PutPiece(Int32 squareNumber)
         {
+            if (this.GameState != GameState.MatchRemaining)
+            {
+                return;
+            }
+
             var client = new MyHttpClinet();
-            string url = $"https://localhost:7146/api/putpiece/{squareNumber}";
-            await client.GetAsync(url);
+
+            string url = "https://localhost:7146/api/putpiece";
+
+            var jsonString = JsonSerializer.Serialize(squareNumber);
+            var content = new StringContent(jsonString, Encoding.UTF8, "application/json");
+
+            await client.PostAsync(url, content);
         }
 
         private async void PollingToReflectServerSituation()
         {
+            // 処理を軽くするためサーバーとクライアントのLogに差がないときはオセロを作り直さないようにします。
+            // ゲーム開始直後だけはLogがサーバーと変わりがなくても作り直す処理が入ります。
             var logOfGameList = LogStringToLogList(await SearchLogOnTheServer());
-
             this.BuildSituationFromLog(logOfGameList);
 
-            var pollingRate = new Timer(100); // msec
+            var pollingToReflectRate = new Timer(100); // msec
 
-            pollingRate.Elapsed += async (sender, e) =>
+            pollingToReflectRate.Elapsed += async (sender, e) =>
             {
-                if (this.GameState != GameState.MatchRemaining)
+                if (this.GameState == GameState.SelectSide)
                 {
-                    pollingRate.Stop();
+                    pollingToReflectRate.Stop();
                     return;
                 }
-                var logOfGameList = LogStringToLogList(await SearchLogOnTheServer());
 
-                if (IsLogUpDated(logOfGameList) == false)
+                var logOfGameList = this.LogStringToLogList(await this.SearchLogOnTheServer());
+                if (this.IsLogUpDated(logOfGameList) == false)
                 {
                     return;
                 }
+
+                if (this.IsRetired(logOfGameList))
+                {
+                    this.RetireProcess(logOfGameList);
+                    return;
+                }
+
                 this.BuildSituationFromLog(logOfGameList);
             };
 
-            pollingRate.Start();
-        }
-        private Boolean IsLogUpDated(IList<LogOfGame> logOfGame)
-        {
-            return this.Othello.Log.LogOfGame.Count != logOfGame.Count;
+            pollingToReflectRate.Start();
         }
 
-        private void BuildSituationFromLog(IList<LogOfGame> logOfGameList)
-        {
-            var previousPlayerFirst = this.Othello.PlayerFirst;
-            var previousPlayerSecond = this.Othello.PlayerSecond;
-
-            this.RestartOthello();
-
-            this.Othello.ReCreateOthelloSituation(logOfGameList, new Human(Turn.First), new Human(Turn.Second));
-
-            this.OnLoadLogFileEvent?.Invoke();
-        }
         public IList<LogOfGame> LogStringToLogList(String logString)
         {
             var logInfos = logString.Split(',');
@@ -160,15 +157,10 @@ namespace MyOthelloClient.Pages
             {
                 var splitLine = line.Split('@');
                 var isPass = splitLine[0] == "True" ? true : false;
-                // これをつけると最後まで動くが
-                if (isPass == true)
-                {
-                    continue;
-                }
                 var turn = splitLine[1] == "First" ? Turn.First : Turn.Second;
                 String x;
                 String y;
-                if (isPass == true)
+                if (splitLine[2][0].ToString() == "-")
                 {
                     x = splitLine[2].Substring(0, 2);
                     y = splitLine[2].Substring(2, 2);
@@ -183,52 +175,6 @@ namespace MyOthelloClient.Pages
             }
             return logOfGame;
         }
-        public Boolean IsLogExist(String logString)
-        {
-            var logInfos = logString.Split(',');
-            var isPass = logInfos[0].Split('@')[0];
-            return isPass == "False" || isPass == "True" ? true : false;
-        }
-
-        public async void FugaLoad(Task<String> log)
-        {
-            var previousPlayerFirst = this.Othello.PlayerFirst;
-            var previousPlayerSecond = this.Othello.PlayerSecond;
-
-            this.RestartOthello();
-            var logString = await log;
-            var logInfos = logString.Split(',');
-
-            var logOfGame = new List<LogOfGame>();
-
-            foreach (var line in logInfos)
-            {
-                var splitLine = line.Split('@');
-                var isPass = splitLine[0] == "True" ? true : false;
-                var turn = splitLine[1] == "First" ? Turn.First : Turn.Second;
-                String x;
-                String y;
-                if (isPass == true)
-                {
-                    x = splitLine[2].Substring(0, 2);
-                    y = splitLine[2].Substring(2, 2);
-                }
-                else
-                {
-                    x = splitLine[2][0].ToString();
-                    y = splitLine[2][1].ToString();
-                }
-                var point = new Point(Int32.Parse(x), Int32.Parse(y));
-                logOfGame.Add(new LogOfGame(isPass, turn, point));
-            }
-
-
-            this.Othello.ReCreateOthelloSituation(logOfGame, new Human(Turn.First), new Human(Turn.Second));
-
-            this.Othello.ChangeGameState(GameState.SelectSide);
-
-            this.OnLoadLogFileEvent?.Invoke();
-        }
         public async Task<String> SearchLogOnTheServer()
         {
             var client = new MyHttpClinet();
@@ -236,12 +182,100 @@ namespace MyOthelloClient.Pages
             var logInfo = await result.Content.ReadAsStringAsync();
             return logInfo;
         }
+        public Boolean IsLogExist(String logString)
+        {
+            var logInfos = logString.Split(',');
+            var isPass = logInfos[0].Split('@')[0];
+            return isPass == "False" || isPass == "True" ? true : false;
+        }
+        private Boolean IsLogUpDated(IList<LogOfGame> logOfGame)
+        {
+            return this.Othello.Log.LogOfGame.Count != logOfGame.Count;
+        }
+        private Boolean IsRetired(IList<LogOfGame> logOfGameList)
+        {
+            if (logOfGameList.Count == 0)
+            {
+                return false;
+            }
+            // Retireした時にサーバーのLogではPoint(-5,-5)として記録されます。
+            return logOfGameList.Last().Point.X == -5;
+        }
+        private void RetireProcess(IList<LogOfGame> logOfGameList)
+        {
+            logOfGameList.RemoveAt(logOfGameList.Count - 1);
+            this.Othello.ChangeGameState(GameState.MatchRetired);
+            this.RetireGameEvent(GameState.MatchRetired);
+        }
+        private void BuildSituationFromLog(IList<LogOfGame> logOfGameList)
+        {
+
+            this.RestartOthello();
+
+            this.Othello.ReCreateOthelloSituation(logOfGameList);
+
+            this.OnLoadLogFileEvent?.Invoke();
+        }
+
+        public async void BackFromLog(Int32 numberOfLog)
+        {
+            var client = new MyHttpClinet();
+            string url = "https://localhost:7146/api/backfromlog";
+            var jsonString = JsonSerializer.Serialize(numberOfLog);
+            var content = new StringContent(jsonString, Encoding.UTF8, "application/json");
+
+            await client.PostAsync(url, content);
+        }
+
+        public void RestartOthello()
+        {
+            this.Othello = new MyOthelloModel(this.BoardSize, this.Othello.ThemeColor);
+            this.Othello.TurnEndEvent += this.StateHasChanged;
+        }
+
+        public async void RestartServerOthello()
+        {
+            if (this.GameState == GameState.SelectSide)
+            {
+                return;
+            }
+            var client = new MyHttpClinet();
+            await client.GetAsync("https://localhost:7146/api/restart");
+            this.RestartServerOthelloEvent(GameState.SelectSide);
+        }
+
+        private void ChangeStateToTheStartingPoint()
+        {
+            var checkLogTimer = new Timer(100); // msec
+
+            checkLogTimer.Elapsed += (sender, e) =>
+            {
+                if (this.LogOfGame.Count != 0)
+                {
+                    return;
+                }
+
+                this.Othello.ChangeGameState(GameState.SelectSide);
+                this.RestartClientOthelloEvent(GameState.SelectSide);
+                checkLogTimer.Stop();
+            };
+
+            checkLogTimer.Start();
+        }
+
+        public async void RetireMatch()
+        {
+            var client = new MyHttpClinet();
+            await client.GetAsync("https://localhost:7146/api/retire");
+        }
+
+
         public void ChangeTheme(ThemeColor color)
         {
-            var stringOfColor = this.FugaOthelloThemeToString(color);
+            var stringOfColor = this.OthelloThemeToString(color);
             this.OthelloTheme = stringOfColor;
         }
-        public String FugaOthelloThemeToString(ThemeColor themeColor)
+        public String OthelloThemeToString(ThemeColor themeColor)
         {
             switch (themeColor)
             {
@@ -257,81 +291,49 @@ namespace MyOthelloClient.Pages
                     return "default";
             }
         }
-        public void BackFromLog(Int32 numberOfLog)
-        {
-            this.Othello.EraceLogFromSpecifiedTurn(numberOfLog);
-
-            // RestartOthello()でLogOfGame,PlayerFirst,PlayerSecondが初期化されてしまうので事前に代入する
-            var previousLogOfGame = this.LogOfGame;
-            var previousPlayerFirst = this.Othello.PlayerFirst;
-            var previousPlayerSecond = this.Othello.PlayerSecond;
-
-            this.RestartOthello();
-            this.Othello.ReCreateOthelloSituation(previousLogOfGame, previousPlayerFirst, previousPlayerSecond);
-        }
-        public void RestartOthello()
-        {
-            this.Othello = new MyOthelloModel(this.BoardSize, Othello.ThemeColor);
-            this.Othello.TurnEndEvent += this.StateHasChanged;
-        }
-        public void RetireMatch()
-        {
-            this.Othello.ChangeGameState(GameState.MatchRetired);
-        }
 
 
         public async void UpLoadLogFile(InputFileChangeEventArgs e)
         {
             this.RestartOthello();
 
+            var client = new MyHttpClinet();
+            string url = "https://localhost:7146/api/loadfile";
+
             var file = e.GetMultipleFiles(1);
             var buf = new byte[file[0].Size];
             await file[0].OpenReadStream().ReadAsync(buf);
             var logInfoString = System.Text.Encoding.UTF8.GetString(buf);
+            var jsonString = JsonSerializer.Serialize(logInfoString);
+            var content = new StringContent(jsonString, Encoding.UTF8, "application/json");
 
-            string url = "https://localhost:7146/api/loadfile";
+            await client.PostAsync(url, content);
 
-            var client = new MyHttpClinet();
-            var content = new StringContent(logInfoString, Encoding.UTF8);
-
-            var response = await client.PostAsync(url, content);
-
-            var loadedLogOfGame = LogStringToLogList(logInfoString);
-            var logOfGameStringOnTheServer = SearchLogOnTheServer();
-            var logOfGameOnTheServer = LogStringToLogList(await logOfGameStringOnTheServer);
-
-            while (loadedLogOfGame.Count != logOfGameOnTheServer.Count)
+            // アップロードしたファイルがサーバーで反映されるまで待機します。
+            var loadedLogOfGame = this.LogStringToLogList(logInfoString);
+            var logOfGameOnTheServer = this.LogStringToLogList(await this.SearchLogOnTheServer());
+            var SearchLogTimer = new Timer(100); // msec
+            SearchLogTimer.Elapsed += async (sender, e) =>
             {
-                logOfGameOnTheServer = LogStringToLogList(await SearchLogOnTheServer());
-            }
+                logOfGameOnTheServer = this.LogStringToLogList(await this.SearchLogOnTheServer());
+                while (loadedLogOfGame.Count > logOfGameOnTheServer.Count)
+                {
+                    return;
+                }
+                SearchLogTimer.Stop();
+            };
+            SearchLogTimer.Start();
 
-            this.Othello.ReCreateOthelloSituation(logOfGameOnTheServer, new Human(Turn.First), new Human(Turn.Second));
+
+            this.Othello.ReCreateOthelloSituation(logOfGameOnTheServer);
             this.Othello.ChangeGameState(GameState.SelectSide);
 
             this.OnLoadLogFileEvent?.Invoke();
         }
-        public async Task DownloadFileFromStream()
+        private async Task<IList<LogOfGame>> FindServerLog()
         {
-
-            var fileStream = GetFileStream();
-            var fileName = "savedlog.txt";
-
-            using var streamRef = new DotNetStreamReference(stream: fileStream);
-
-            await JS.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
+            return this.LogStringToLogList(await this.SearchLogOnTheServer());
         }
-        private Stream GetFileStream()
-        {
-            var logLines = this.LogOfGame.Select((log) => $"{log.IsPass}@{log.Turn}@{log.Point.X}{log.Point.Y}");
-            return new MemoryStream(Encoding.UTF8.GetBytes(String.Join(",", logLines)));
-        }
-
-        private void StateHasChangedForTest()
-        {
-            StateHasChanged();
-        }
-
-
     }
     public class MyHttpClinet
     {

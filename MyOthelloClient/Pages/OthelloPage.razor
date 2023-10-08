@@ -1,4 +1,5 @@
 ﻿@using OthelloClassLibrary.Models;
+@using System.Text;
 @page "/"
 @inject IJSRuntime JS
 
@@ -27,6 +28,22 @@
             default:
                 return "存在しません";
         }
+    }
+    private async Task<Stream> GetFileStream()
+    {
+        var logOfGameList = await FindServerLog();
+        var logLines = logOfGameList.Select((log) => $"{log.IsPass}@{log.Turn}@{log.Point.X}{log.Point.Y}");
+        return new MemoryStream(Encoding.UTF8.GetBytes(String.Join(",", logLines)));
+    }
+
+    private async Task DownloadFileFromStream()
+    {
+        var fileStream = await GetFileStream();
+        var fileName = "savedlog.txt";
+
+        using var streamRef = new DotNetStreamReference(stream: fileStream);
+
+        await JS.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
     }
 }
 
@@ -86,7 +103,7 @@
         @if (GameState == GameState.MatchOver || GameState == GameState.MatchRetired)
         {
             <div class="othello-information-inside1 back-ground4 border2">
-                <div class="restart-quit-items" @onclick="() => RestartOthello()">
+                <div class="restart-quit-items" @onclick="() => RestartServerOthello()">
                     もう一度対戦
                 </div>
             </div>
@@ -99,7 +116,7 @@
                     var numberOfLog = i;
                     var logOfGame = LogOfGame[numberOfLog];
                     <li class="log-items" @onclick="() => BackFromLog(numberOfLog)">
-                        @(logOfGame.Turn == Turn.First ? "先手が": "後手が")
+                        @(logOfGame.Turn == Turn.First ? "先手が" : "後手が")
                         @(logOfGame.IsPass == true ? "パスしました" : $"[{logOfGame.Point.Y + 1},{logOfGame.Point.X + 1}]に石を置きました")
                     </li>
                 }
@@ -153,21 +170,12 @@
             }
         </div>
         <div class="retire-restart-space back-ground4 border4" @onclick="() => RetireMatch()">リタイア</div>
-        <div class="retire-restart-space back-ground4 border4" @onclick="() => RestartOthello()">リスタート</div>
+        <div class="retire-restart-space back-ground4 border4" @onclick="() => RestartServerOthello()">リスタート</div>
     </div>
 </div>
 
 <button @onclick="DownloadFileFromStream">
     Download File From Stream
-</button>
-<button @onclick="() => FugaLoad(SearchLogOnTheServer())">
-    Find Log From Server
-</button>
-<button @onclick="() => StateHasChangedForTest()">
-    StateHasChanged
-</button>
-<button @onclick="() => PollingToReflectServerSituation()">
-    Polling
 </button>
 
 <InputFile OnChange="@UpLoadLogFile" />

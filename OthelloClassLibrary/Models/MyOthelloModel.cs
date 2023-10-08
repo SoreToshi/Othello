@@ -61,7 +61,7 @@ namespace OthelloClassLibrary.Models
             private set
             {
                 this._GameState = value;
-                this.GameStateChangedEvent?.Invoke(value);
+                this.GameStateChangedEvent?.Invoke(value,this.Turn);
             }
         }
 
@@ -98,7 +98,7 @@ namespace OthelloClassLibrary.Models
         }
 
         public event Action TurnEndEvent;
-        private event Action<GameState> GameStateChangedEvent;
+        private event Action<GameState, Turn> GameStateChangedEvent;
         private event Action<Point, Turn> PutPieceEvent;
         private event Action<Boolean, Point, Turn> PassEvent;
         private event Action<Turn> TurnChangedEvent;
@@ -111,8 +111,17 @@ namespace OthelloClassLibrary.Models
             this.PutPieceEvent += (point, turn) => this.ProgressGame();
             this.TurnChangedEvent += (turn) => this.WaitPutPiece();
             this.PassEvent += (isPass, point, turn) => this.WaitPutPiece();
-            this.GameStateChangedEvent += (state) =>
+
+
+            // GameState.MatchRetiredに変わったときにthis.Log.KeepALogOfGame(false,this.Turn,-5,-5)で
+            // ログを取ります。Pollingでログを受け取ったクライアント側はリタイアしたか確認するメソッドIsMatchRetired()
+            // (-5,-5のpointが最後のログに書いてないか調べる)で確認でき次第GameStateをRetiredに設定します。
+            this.GameStateChangedEvent += (state, turn) =>
             {
+                if (state == GameState.MatchRetired)
+                {
+                    this.Log.KeepALogOfGame(this.Turn, new Point(-5, -5));
+                }
                 if (state != GameState.MatchRemaining)
                 {
                     return;
@@ -155,6 +164,7 @@ namespace OthelloClassLibrary.Models
                 this.PlayerSecond = player;
             }
         }
+
         public void ChangeGameState(GameState gameState)
         {
             if (gameState == GameState.MatchRetired && this.GameState != GameState.MatchRemaining)
@@ -222,7 +232,7 @@ namespace OthelloClassLibrary.Models
                 return;
             }
 
-            this.PassEvent?.Invoke(true, new Point(-1, -1), nextTurn);
+            this.PassEvent?.Invoke(true, new Point(-3, -3), nextTurn);
 
             if (this.OthelloBoard.HasTherePlaceToPut(GetSide(this.Turn)) == false)
             {
@@ -247,7 +257,7 @@ namespace OthelloClassLibrary.Models
             this.PutPiece(squareNumber);
             this.TurnEndEvent?.Invoke();
         }
-        
+
     }
 
     public enum Turn { First, Second }

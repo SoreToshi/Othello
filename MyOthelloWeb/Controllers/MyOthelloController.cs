@@ -21,9 +21,10 @@ namespace MyOthelloWeb.Controllers
             _logger = logger;
         }
 
+        // 対Cpuモードの処理
         [HttpGet]
-        [Route("fugastart{Turn}")]
-        public void FugaStartSecond(String turn)
+        [Route("start{Turn}")]
+        public void Start(String turn)
         {
             if (turn != "first" && turn != "second")
             {
@@ -48,44 +49,9 @@ namespace MyOthelloWeb.Controllers
             othello.ChangeGameState(GameState.MatchRemaining);
         }
 
-        [HttpGet]
-        [Route("hello")]
-        public String Hello() {
-            return "hello world!";
-        }
-
+        [Route("putpiece")]
         [HttpPost]
-        [Route("startfirst")]
-        public void PlayerStartsFirst()
-        {
-            var player = new Human(Turn.First);
-            var othello = OthelloManager.Instance;
-            othello.SetPlayer(player);
-
-            var cpuTurn = player.Turn == Turn.First ? Turn.Second : Turn.First;
-            var playerCpu = new Cpu(cpuTurn);
-            othello.SetPlayer(playerCpu);
-
-            othello.ChangeGameState(GameState.MatchRemaining);
-        }
-        [HttpGet]
-        [Route("startsecond")]
-        public void PlayerStartsSecond()
-        {
-            var player = new Human(Turn.Second);
-            var othello = OthelloManager.Instance;
-            othello.SetPlayer(player);
-
-            var cpuTurn = player.Turn == Turn.First ? Turn.Second : Turn.First;
-            var playerCpu = new Cpu(cpuTurn);
-            othello.SetPlayer(playerCpu);
-
-            othello.ChangeGameState(GameState.MatchRemaining);
-        }
-
-        [Route("putpiece/{squarenumber}")]
-        [HttpGet]
-        public void PutPiece(Int32 squareNumber)
+        public void PutPiece([FromBody] Int32 squareNumber)
         {
             var othello = OthelloManager.Instance;
             if (othello.HasRightToPut() == false)
@@ -95,14 +61,14 @@ namespace MyOthelloWeb.Controllers
             othello.PutPiece(squareNumber);
         }
 
-        [HttpPost]
+        [HttpGet]
         [Route("restart")]
         public void RestartOthello()
         {
             OthelloManager.Instance = new MyOthelloModel(OthelloManager.BoardSize, OthelloManager.Instance.ThemeColor);
         }
 
-        [HttpPost]
+        [HttpGet]
         [Route("retire")]
         public void RetireMatch()
         {
@@ -110,8 +76,8 @@ namespace MyOthelloWeb.Controllers
         }
 
         [HttpPost]
-        [Route("backfromlog/{numberoflog}")]
-        public void BackFromLog(Int32 numberOfLog)
+        [Route("backfromlog")]
+        public void BackFromLog([FromBody] Int32 numberOfLog)
         {
             var othello = OthelloManager.Instance;
             othello.EraceLogFromSpecifiedTurn(numberOfLog);
@@ -127,47 +93,20 @@ namespace MyOthelloWeb.Controllers
             newOthello.ReCreateOthelloSituation(previousLogOfGame, previousPlayerFirst, previousPlayerSecond);
         }
 
-        [HttpPost]
-        [Route("selectcolor/{color}")]
-        public String SelectThemeColor(String color)
-        {
-            var themeColor = StringToOthelloTheme(color);
-            
-            OthelloManager.Instance.ThemeColor = themeColor;
-
-            return color;
-        }
-
-        public ThemeColor StringToOthelloTheme(String color)
-        {
-            switch (color)
-            {
-                case "default":
-                    return ThemeColor.Default;
-                case "dango":
-                    return ThemeColor.Dango;
-                case "sakura":
-                    return ThemeColor.Sakura;
-                case "ice":
-                    return ThemeColor.Ice;
-                default:
-                    return ThemeColor.Default;
-            }
-        }
-
-        [HttpPost]
-        [Route("Post")]
-        public void Post()
-        {
-            var player = new Human(Turn.First);
-        }
 
         [HttpGet]
         [Route("returnlog")]
         public String PlayerStartsSecondAndReturn()
         {
             var othello = OthelloManager.Instance;
-            var logLines = OthelloManager.Instance.Log.LogOfGame.Select((log) => $"{log.IsPass}@{log.Turn}@{log.Point.X}{log.Point.Y}");
+
+            // マッチリタイア状態の時にLogのPointに-5,-5を入れることで受け取ったクライアントがリタイア状態であることを反映できます。
+            if (othello.GameState == GameState.MatchRetired)
+            {
+                othello.Log.KeepALogOfGame(othello.Turn, new Point(-5, -5));
+            }
+
+            var logLines = othello.Log.LogOfGame.Select((log) => $"{log.IsPass}@{log.Turn}@{log.Point.X}{log.Point.Y}");
             var logString = String.Join(",", logLines);
             return logString;
         }
@@ -187,8 +126,6 @@ namespace MyOthelloWeb.Controllers
             othello.ChangeGameState(GameState.SelectSide);
         }
 
-        // この部分はクライアント側で行われる処理なのでIndexに戻します。
-        // またリストではなく、テキストで送るための形式に変更する必要があります。
         private IList<LogOfGame> LoadFiles(String log)
         {
             var listOfLog = new List<LogOfGame>();
@@ -214,15 +151,6 @@ namespace MyOthelloWeb.Controllers
                 listOfLog.Add(new LogOfGame(isPass, turn, point));
             }
             return listOfLog;
-        }
-
-        [HttpPost]
-        [Route("download")]
-        public String FetchLogFile()
-        {
-            var logLines = OthelloManager.Instance.Log.LogOfGame.Select((log) => $"{log.IsPass}@{log.Turn}@{log.Point.X}{log.Point.Y}");
-            var logString = String.Join(",", logLines);
-            return logString;
         }
     }
 }
