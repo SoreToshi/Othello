@@ -29,153 +29,188 @@
                 return "存在しません";
         }
     }
-    private async Task<Stream> GetFileStream()
+
+    private String NumberOfConnectionsColor(Int32 numberOfConnection, GameMode gameMode)
     {
-        var logOfGameList = await FindServerLog();
-        var logLines = logOfGameList.Select((log) => $"{log.IsPass}@{log.Turn}@{log.Point.X}{log.Point.Y}");
-        return new MemoryStream(Encoding.UTF8.GetBytes(String.Join(",", logLines)));
-    }
+        if (gameMode == GameMode.VsHuman)
+        {
+            return numberOfConnection == 0 ? "back-ground-green"
+             : numberOfConnection == 1 ? "back-ground-yellow" : "back-ground-red";
+        }
 
-    private async Task DownloadFileFromStream()
-    {
-        var fileStream = await GetFileStream();
-        var fileName = "savedlog.txt";
-
-        using var streamRef = new DotNetStreamReference(stream: fileStream);
-
-        await JS.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
+        return numberOfConnection == 0 ? "back-ground-green" : "back-ground-red";
     }
 }
 
-<div class="othello-board-wrapper @OthelloTheme">
-    <div class="othello-information">
-        @if (GameState == GameState.SelectSide)
-        {
-            <div class="select-side-space back-ground4">
-                <div class="border3" @onclick="() => StartGame(new Human(Turn.First))">Play First</div>
-                <div @onclick="() => StartGame(new Human(Turn.Second))">Play Second</div>
-            </div>
-        }
-        @if (GameState == GameState.MatchRemaining || GameState == GameState.SelectSide)
-        {
-            <div class="othello-information-inside1 border2 back-ground1">
-                <div>現在のターン</div>
-                <div>@StringOfTurn</div>
-            </div>
-        }
-        else if (GameState == GameState.MatchRetired)
-        {
-            <div class="othello-information-inside3 border2 back-ground1">
-                <div class="information-items">@(Othello.Turn == Turn.First ? "後手の勝ち" : "先手の勝ち")</div>
-                <div>&nbsp;</div>
-                <div class="information-items">@(Othello.Turn == Turn.First ? "先手" : "後手")がリタイアしました</div>
-            </div>
-        }
-        else if (GameState == GameState.MatchOver)
-        {
-            <div class="othello-information-inside3 border2 back-ground1">
-                <div class="information-items">
-                    @(
-                        NumberOfBlackPiece > NumberOfWhitePiece ?
-                        $"{NumberOfBlackPiece - NumberOfWhitePiece}" :
-                        $"{NumberOfWhitePiece - NumberOfBlackPiece}"
-                        )枚差で
+@if (OthelloRoomNumber == 0)
+{
+    <div class="select-room-space-wrapper">
+        <div class="othello-room-space">
+            <div> 部屋を選んでください</div>
+            ***
+            @foreach (var roomInfo in this.OthelloRooms)
+            {
+                <div class="othello-room-space-inside @NumberOfConnectionsColor(roomInfo.Value.NumberOfConnections, roomInfo.Value.GameModeOfRoom)" @onclick="() => SelectOthelloRoom(roomInfo.Key)">
+                    RoomNumber @roomInfo.Key : @roomInfo.Value.GameModeOfRoom&nbsp;
+                    <div>
+                        : @roomInfo.Value.NumberOfConnections/@RoomCapacity[roomInfo.Key] 人
+                    </div>
                 </div>
-                <div>&nbsp;</div>
-                <div class="information-items">
-                    @if (NumberOfBlackPiece == NumberOfWhitePiece)
+            }
+            <div class="othello-room-space-inside" @onclick="() => UpdateNumberOfConnections()">更新</div>
+        </div>
+    </div>
+}
+
+else
+{
+    <div class="othello-board-wrapper @OthelloTheme">
+        <div class="othello-information">
+            @if (GameState == GameState.SelectSide)
+            {
+                <div class="select-side-space back-ground4">
+                    <div class="border2" @onclick="() => StartGame(new Human(Turn.First))">Play First</div>
+                    <div @onclick="() => StartGame(new Human(Turn.Second))">Play Second</div>
+                </div>
+                @if (ModeSelectPlayerStatus != PlayerStatusInSelect.Nothing)
+                {
+                    <div class="select-side-state back-ground4">
+                        @if (ModeSelectPlayerStatus == PlayerStatusInSelect.CantSelect)
+                        {
+                            <div>選択した先攻後攻は対戦相手によって選ばれています</div>
+                        }
+                        @if (ModeSelectPlayerStatus == PlayerStatusInSelect.Waiting)
+                        {
+                            <div>対戦相手を待っています</div>
+                        }
+                    </div>
+                }
+            }
+            @if (GameState == GameState.MatchRemaining || GameState == GameState.SelectSide)
+            {
+                <div class="othello-information-inside1 border1 back-ground1">
+                    <div>現在のターン</div>
+                    <div>@StringOfTurn</div>
+                </div>
+            }
+            else if (GameState == GameState.MatchRetired)
+            {
+                <div class="othello-information-inside2 border1 back-ground1">
+                    <div class="information-items">@(Othello.RetiredTurn == Turn.First ? "後手の勝ち" : "先手の勝ち")</div>
+                    <div>&nbsp;</div>
+                    <div class="information-items">@(Othello.RetiredTurn == Turn.First ? "先手" : "後手")がリタイアしました</div>
+                </div>
+            }
+            else if (GameState == GameState.MatchOver)
+            {
+                <div class="othello-information-inside2 border1 back-ground1">
+                    <div class="information-items">
+                        @(
+                            NumberOfBlackPiece > NumberOfWhitePiece ?
+                            $"{NumberOfBlackPiece - NumberOfWhitePiece}" :
+                            $"{NumberOfWhitePiece - NumberOfBlackPiece}"
+                            )枚差で
+                    </div>
+                    <div>&nbsp;</div>
+                    <div class="information-items">
+                        @if (NumberOfBlackPiece == NumberOfWhitePiece)
+                        {
+                            @:引き分け
+                        }
+                        else if (NumberOfBlackPiece > NumberOfWhitePiece)
+                        {
+                            @:先手の勝ち
+                        }
+                        else
+                        {
+                            @:後手の勝ち
+                        }
+                    </div>
+                </div>
+            }
+
+
+            @if (GameState == GameState.MatchOver || GameState == GameState.MatchRetired)
+            {
+                <div class="othello-information-inside1 back-ground4 border1">
+                    <div class="restart-quit-items" @onclick="() => RestartServerOthello()">
+                        もう一度対戦
+                    </div>
+                </div>
+            }
+            else if (GameState == GameState.MatchRemaining || GameState == GameState.SelectSide)
+            {
+                <ul class="othello-information-inside3 border1 back-ground1">
+                    @for (var i = 0; i < LogOfGame.Count; i++)
                     {
-                        @:引き分け
+                        var numberOfLog = i;
+                        var logOfGame = LogOfGame[numberOfLog];
+                        <li class="log-items" @onclick="() => BackFromLog(numberOfLog)">
+                            @(logOfGame.Turn == Turn.First ? "先手が" : "後手が")
+                            @(logOfGame.IsPass == true ? "パスしました" : $"[{logOfGame.Point.Y + 1},{logOfGame.Point.X + 1}]に石を置きました")
+                        </li>
                     }
-                    else if (NumberOfBlackPiece > NumberOfWhitePiece)
+                </ul>
+            }
+        </div>
+        <div class="othello-board">
+            @foreach (var (piece, squareNumber) in Pieces)
+            {
+                @if (piece == null)
+                {
+                    @if (SquareNumberListCanBePut.Contains(squareNumber))
                     {
-                        @:先手の勝ち
+                        <div class="back-ground5 border4" @onclick="() => PutPiece(squareNumber)"></div>
                     }
                     else
                     {
-                        @:後手の勝ち
+                        <div class="border4"></div>
                     }
-                </div>
-            </div>
-        }
-
-
-        @if (GameState == GameState.MatchOver || GameState == GameState.MatchRetired)
-        {
-            <div class="othello-information-inside1 back-ground4 border2">
-                <div class="restart-quit-items" @onclick="() => RestartServerOthello()">
-                    もう一度対戦
-                </div>
-            </div>
-        }
-        else if (GameState == GameState.MatchRemaining || GameState == GameState.SelectSide)
-        {
-            <ul class="othello-information-inside2 border2 back-ground1">
-                @for (var i = 0; i < LogOfGame.Count; i++)
-                {
-                    var numberOfLog = i;
-                    var logOfGame = LogOfGame[numberOfLog];
-                    <li class="log-items" @onclick="() => BackFromLog(numberOfLog)">
-                        @(logOfGame.Turn == Turn.First ? "先手が" : "後手が")
-                        @(logOfGame.IsPass == true ? "パスしました" : $"[{logOfGame.Point.Y + 1},{logOfGame.Point.X + 1}]に石を置きました")
-                    </li>
-                }
-            </ul>
-        }
-    </div>
-    <div class="othello-board">
-        @foreach (var (piece, squareNumber) in Pieces)
-        {
-            @if (piece == null)
-            {
-                @if (SquareNumberListCanBePut.Contains(squareNumber))
-                {
-                    <div class="back-ground5 border5" @onclick="() => PutPiece(squareNumber)"></div>
                 }
                 else
                 {
-                    <div class="border5"></div>
+                    @if (piece.Side == Side.Black)
+                    {
+                        <div class="border4">
+                            <div class="first-piece"></div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="border4">
+                            <div class="second-piece"></div>
+                        </div>
+                    }
                 }
             }
-            else
-            {
-                @if (piece.Side == Side.Black)
+        </div>
+        <div class="othello-information">
+            <div class="number-of-piece-space border3 back-ground2">
+                <div class="piece-color">先手</div>
+                <div class="number-of-piece">@NumberOfBlackPiece 枚</div>
+            </div>
+            <div class="number-of-piece-space border3 back-ground3">
+                <div class="piece-color">後手</div>
+                <div class="number-of-piece">@NumberOfWhitePiece 枚</div>
+            </div>
+            <div class="change-color-space back-ground4 border3">
+                @foreach (var themeColor in ThemeColorList)
                 {
-                    <div class="border5">
-                        <div class="first-piece"></div>
-                    </div>
+                    <div @onclick="() => ChangeTheme(themeColor)">@ThemeColorString(themeColor)</div>
                 }
-                else
-                {
-                    <div class="border5">
-                        <div class="second-piece"></div>
-                    </div>
-                }
-            }
-        }
+            </div>
+            <div class="retire-restart-space back-ground4 border3" @onclick="() => RetireMatch()">リタイア</div>
+            <div class="retire-restart-space back-ground4 border3" @onclick="() => MoveToRoomSelect()">ルーム選択へ戻ります</div>
+        </div>
     </div>
-    <div class="othello-information">
-        <div class="number-of-piece-space border4 back-ground2">
-            <div class="piece-color">先手</div>
-            <div class="number-of-piece">@NumberOfBlackPiece 枚</div>
-        </div>
-        <div class="number-of-piece-space border4 back-ground3">
-            <div class="piece-color">後手</div>
-            <div class="number-of-piece">@NumberOfWhitePiece 枚</div>
-        </div>
-        <div class="change-color-space back-ground4 border4">
-            @foreach (var themeColor in ThemeColorList)
-            {
-                <div @onclick="() => ChangeTheme(themeColor)">@ThemeColorString(themeColor)</div>
-            }
-        </div>
-        <div class="retire-restart-space back-ground4 border4" @onclick="() => RetireMatch()">リタイア</div>
-        <div class="retire-restart-space back-ground4 border4" @onclick="() => RestartServerOthello()">リスタート</div>
-    </div>
-</div>
 
-<button @onclick="DownloadFileFromStream">
-    Download File From Stream
-</button>
+    @if (GameState == GameState.MatchRemaining || GameState == GameState.MatchRetired)
+    {
+        <button @onclick="DownloadFileFromStream">
+            Download File From Stream
+        </button>
 
-<InputFile OnChange="@UpLoadLogFile" />
+        <InputFile OnChange="@UpLoadLogFile" />
+    }
+
+}

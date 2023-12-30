@@ -1,10 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Security.Cryptography.X509Certificates;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace OthelloClassLibrary.Models
 {
@@ -61,9 +57,11 @@ namespace OthelloClassLibrary.Models
             private set
             {
                 this._GameState = value;
-                this.GameStateChangedEvent?.Invoke(value,this.Turn);
+                this.GameStateChangedEvent?.Invoke(value, this.Turn);
             }
         }
+        public GameMode GameMode { get; private set; }
+        public Turn RetiredTurn { get; set; }
 
         public IPlayer CurrentPlayer
         {
@@ -98,8 +96,8 @@ namespace OthelloClassLibrary.Models
         }
 
         public event Action TurnEndEvent;
-        private event Action<GameState, Turn> GameStateChangedEvent;
-        private event Action<Point, Turn> PutPieceEvent;
+        public event Action<GameState, Turn> GameStateChangedEvent;
+        private event Action<Turn, Point> PutPieceEvent;
         private event Action<Boolean, Point, Turn> PassEvent;
         private event Action<Turn> TurnChangedEvent;
 
@@ -107,21 +105,14 @@ namespace OthelloClassLibrary.Models
         {
             this.ThemeColor = themeColor;
             this.OthelloBoard = new OthelloBoard(boardSize);
-            this.PutPieceEvent += (point, turn) => this.Log.KeepALogOfGame(turn, point);
+            this.PutPieceEvent += (turn, point) => this.Log.KeepALogOfGame(turn, point);
             this.PutPieceEvent += (point, turn) => this.ProgressGame();
             this.TurnChangedEvent += (turn) => this.WaitPutPiece();
             this.PassEvent += (isPass, point, turn) => this.WaitPutPiece();
 
 
-            // GameState.MatchRetiredに変わったときにthis.Log.KeepALogOfGame(false,this.Turn,-5,-5)で
-            // ログを取ります。Pollingでログを受け取ったクライアント側はリタイアしたか確認するメソッドIsMatchRetired()
-            // (-5,-5のpointが最後のログに書いてないか調べる)で確認でき次第GameStateをRetiredに設定します。
             this.GameStateChangedEvent += (state, turn) =>
             {
-                if (state == GameState.MatchRetired)
-                {
-                    this.Log.KeepALogOfGame(this.Turn, new Point(-5, -5));
-                }
                 if (state != GameState.MatchRemaining)
                 {
                     return;
@@ -131,7 +122,6 @@ namespace OthelloClassLibrary.Models
 
             this.PassEvent += (isPass, point, turn) => this.Log.KeepALogOfGame(isPass, turn, point);
         }
-
         public void PutPiece(Int32 squareNumber)
         {
             if (this.GameState != GameState.MatchRemaining)
@@ -146,7 +136,7 @@ namespace OthelloClassLibrary.Models
             }
 
             this.OthelloBoard.PutPiece(point, this.Turn);
-            this.PutPieceEvent?.Invoke(point, this.Turn);
+            this.PutPieceEvent?.Invoke(this.Turn, point);
         }
         public Boolean HasRightToPut()
         {
@@ -164,7 +154,10 @@ namespace OthelloClassLibrary.Models
                 this.PlayerSecond = player;
             }
         }
-
+        public void SelectGameMode(GameMode gameMode)
+        {
+            this.GameMode = gameMode;
+        }
         public void ChangeGameState(GameState gameState)
         {
             if (gameState == GameState.MatchRetired && this.GameState != GameState.MatchRemaining)
@@ -243,6 +236,8 @@ namespace OthelloClassLibrary.Models
 
         private async void WaitPutPiece()
         {
+            var x = this.PlayerFirst;
+            var y = this.PlayerSecond;
             if (this.CurrentPlayer.IsAutomaton == false)
             {
                 return;
@@ -257,10 +252,10 @@ namespace OthelloClassLibrary.Models
             this.PutPiece(squareNumber);
             this.TurnEndEvent?.Invoke();
         }
-
     }
 
     public enum Turn { First, Second }
     public enum ThemeColor { Default, Dango, Sakura, Ice }
-    public enum GameState { SelectSide, MatchOver, MatchRetired, MatchRemaining }
+    public enum GameState { SelectSide, MatchOver, MatchRetired, MatchRemaining, ModeSelect }
+    public enum GameMode { VsCpu, VsHuman }
 }

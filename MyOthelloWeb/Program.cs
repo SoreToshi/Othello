@@ -14,11 +14,6 @@ builder.Services.AddCors(options =>
 // Add services to the container.
 builder.Services.AddRazorPages();
 
-builder.Services.AddControllers(mvcOptions =>
-{
-    mvcOptions.InputFormatters.Add(new TextSingleValueFormatter());
-});
-
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -36,8 +31,6 @@ app.UseStaticFiles();
 app.UseRouting();
 
 app.UseCors(MyAllowSpecificOrigins);
-
-//app.UseCors("*");
 
 app.UseAuthorization();
 
