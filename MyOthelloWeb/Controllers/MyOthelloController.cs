@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using MyOthelloWeb.Models;
 using OthelloClassLibrary.Models;
-using Timer = System.Timers.Timer;
 
 namespace MyOthelloWeb.Controllers
 {
@@ -8,14 +8,14 @@ namespace MyOthelloWeb.Controllers
     [Route("/api")]
     public class MyOthelloController : ControllerBase
     {
-
         private event Action<Int32, IdentificationNumber> ReturnIdentificationNumberEvent;
         private event Action<Int32> InvertIsAccessEvent;
         private event Action<Int32, IdentificationNumber> ReturnLogEvent;
         public MyOthelloController()
         {
+            var accessMonitor = new AccessMonitor();
             this.ReturnIdentificationNumberEvent += this.InvertIsAccess;
-            this.InvertIsAccessEvent += this.MonitorAccessTime;
+            this.InvertIsAccessEvent += accessMonitor.MonitorAccessTime;
             this.ReturnLogEvent += this.AddAccessTime;
         }
 
@@ -23,7 +23,7 @@ namespace MyOthelloWeb.Controllers
         [Route("fetchroomsinformationforclient")]
         public String ReturnRoomsInformationForClient()
         {
-            var roomsInformationLine = OthelloManager.OthelloRooms.Select((roomInformation) => $"{roomInformation.Key}@{roomInformation.Value.Model.GameMode}@{roomInformation.Value.NumberOfConnection}");
+            var roomsInformationLine = OthelloManager.Rooms.Select((roomInformation) => $"{roomInformation.Key}@{roomInformation.Value.Model.GameMode}@{roomInformation.Value.NumberOfConnection}");
             var roomsInformationString = String.Join(",", roomsInformationLine);
             return roomsInformationString;
         }
@@ -32,7 +32,7 @@ namespace MyOthelloWeb.Controllers
         [Route("fetchnumberofconnections")]
         public String ReturnNumberOfConnections()
         {
-            var numberOfConnectionLine = OthelloManager.OthelloRooms.Select((othelloRooms) => $"{othelloRooms.Key}@{othelloRooms.Value.NumberOfConnection}");
+            var numberOfConnectionLine = OthelloManager.Rooms.Select((othelloRooms) => $"{othelloRooms.Key}@{othelloRooms.Value.NumberOfConnection}");
             var numberOfConnectionString = String.Join(",", numberOfConnectionLine);
             return numberOfConnectionString;
         }
@@ -41,16 +41,23 @@ namespace MyOthelloWeb.Controllers
         [Route("fetchidentificationnumber{RoomNumber}")]
         public String ReturnIdentificationNumber(Int32 roomNumber)
         {
-            // Eventで一人目、二人目が部屋に接続したと設定するメソッドを呼び出します。
-            foreach (var playerInfo in OthelloManager.OthelloRooms[roomNumber].PlayerInfos)
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
             {
-                if (playerInfo.IsPlayerAccess == false)
-                {
-                    this.ReturnIdentificationNumberEvent?.Invoke(roomNumber, playerInfo.IdentificationNumber);
-                    return playerInfo.IdentificationNumber.ToString();
-                }
+                return "NoIdentificationNumberLeft";
             }
-            return "NoIdentificationNumberLeft";
+
+            try
+            {
+                // Eventで一人目、二人目が部屋に接続したと設定するメソッドを呼び出します。
+                var identificationNumber = room.FindAvailableIdentificationNumber();
+                this.ReturnIdentificationNumberEvent?.Invoke(roomNumber, identificationNumber);
+                return identificationNumber.ToString();
+            }
+            catch (InvalidCastException) 
+            {
+                return "NoIdentificationNumberLeft";
+            }
         }
 
         private void InvertIsAccess(Int32 roomNumber, IdentificationNumber identificationNumber)
@@ -60,109 +67,7 @@ namespace MyOthelloWeb.Controllers
             playerInfo.InvertIsAccess();
 
             // 接続した際に、その後接続を継続しているか監視するメソッドをイベントで呼び出します。
-            this.InvertIsAccessEvent.Invoke(roomNumber);
-        }
-
-        private void MonitorAccessTime(Int32 roomNumber)
-        {
-            if (OthelloManager.OthelloRooms[roomNumber].NumberOfConnection != 1)
-            {
-                return;
-            }
-
-            var othelloGameMode = OthelloManager.OthelloRooms[roomNumber].Model.GameMode;
-
-            if (othelloGameMode == GameMode.VsCpu)
-            {
-                this.MonitorVsCpu(roomNumber);
-            }
-
-            if (othelloGameMode == GameMode.VsHuman)
-            {
-                this.MonitorVsHuman(roomNumber);
-            }
-        }
-        private void MonitorVsCpu(Int32 roomNumber)
-        {
-            // client側のpollingTimerよりこのタイマーは遅くします。
-            var monitorAccessTimer = new Timer(4000); // msec
-            var playerInfo = OthelloManager.OthelloRooms[roomNumber].PlayerInfos[0];
-            var oldPlayerAccessTime = 0;
-
-            monitorAccessTimer.Elapsed += (sender, e) =>
-            {
-                if (oldPlayerAccessTime == playerInfo.PlayerAccessTime)
-                {
-                    monitorAccessTimer.Stop();
-                    monitorAccessTimer.Dispose();
-
-                    // // プレイヤーがいなくなった際にルームを初期化します。
-                    OthelloManager.RecreateRoomInformationForServer(roomNumber);
-                }
-                oldPlayerAccessTime = playerInfo.PlayerAccessTime;
-            };
-
-            monitorAccessTimer.Start();
-        }
-        private void MonitorVsHuman(Int32 roomNumber)
-        {
-            // client側のpollingTimerよりこのタイマーは遅くします。
-            var monitorAccessTimer = new Timer(4000); // msec
-            var playerInfos = OthelloManager.OthelloRooms[roomNumber].PlayerInfos;
-            var othello = OthelloManager.OthelloRooms[roomNumber].Model;
-            var oldPlayerAccessTimeList = new List<Int32>();
-            foreach (var playerInfo in playerInfos)
-            {
-                oldPlayerAccessTimeList.Add(0);
-            }
-
-            monitorAccessTimer.Elapsed += (sender, e) =>
-            {
-                foreach (var playerInfo in playerInfos.Select((value, index) => new { value, index }))
-                {
-                    if (this.IsPlayerDisconected(playerInfo.value, oldPlayerAccessTimeList[playerInfo.index]))
-                    {
-                        this.DisconectedProgress(playerInfo.value, othello.GameState);
-                    }
-                }
-                if (playerInfos.All(info => !info.IsPlayerAccess))
-                {
-                    monitorAccessTimer.Stop();
-                    monitorAccessTimer.Dispose();
-
-                    // プレイヤーがいなくなった際にルームを初期化します。
-                    OthelloManager.RecreateRoomInformationForServer(roomNumber);
-                }
-
-                foreach (var playerInfo in playerInfos.Select((value, index) => new { value, index }))
-                {
-                    oldPlayerAccessTimeList[playerInfo.index] = playerInfo.value.PlayerAccessTime;
-                }
-            };
-
-            monitorAccessTimer.Start();
-        }
-        private void DisconectedProgress(PlayerAccessInfo playerInfo, GameState gameState)
-        {
-            playerInfo.InvertIsAccess();
-
-            if (!playerInfo.IsTurnSelected)
-            {
-                return;
-            }
-
-            // リタイア中新しく入ってきた人のターンを選べるようにすると、
-            // 対戦相手がまだリタイア画面にもかかわらずゲームが始まってしまうのでリターンします。
-            if (gameState == GameState.MatchRetired)
-            {
-                return;
-            }
-            playerInfo.InvertIsTurnSelected();
-        }
-
-        private Boolean IsPlayerDisconected(PlayerAccessInfo playerInfo, Int32 oldPlayerAccessTime)
-        {
-            return playerInfo.IsPlayerAccess && oldPlayerAccessTime == playerInfo.PlayerAccessTime;
+            this.InvertIsAccessEvent?.Invoke(roomNumber);
         }
 
         [HttpGet]
@@ -170,31 +75,8 @@ namespace MyOthelloWeb.Controllers
         public String ReturnLog(Int32 roomNumber, IdentificationNumber identificationNumber)
         {
             var othello = OthelloManager.OthelloRooms[roomNumber].Model;
-            var logForReturnLog = new Log();
-            if (othello.Log.LogOfGame.Count != 0)
-            {
-                foreach (var log in othello.Log.LogOfGame)
-                {
-                    logForReturnLog.KeepALogOfGame(log.IsPass, log.Turn, log.Point);
-                }
-            }
-
-            // セレクトサイド状態の時に-8,-8を入れることで受け取ったクライアントがSelectSide状態であることを反映できます。
-            if (othello.GameState == GameState.SelectSide)
-            {
-                logForReturnLog.KeepALogOfGame(othello.Turn, new Point(-8, -8));
-            }
-
-            // マッチリタイア状態の時にLogのPointにxに-5を入れることで受け取ったクライアントがリタイア状態であることを、yに-1,-2を入れることで
-            // 先手と後手どちらがリタイアしたかを反映できます。
-            if (othello.GameState == GameState.MatchRetired)
-            {
-                var retiredTurnNumber = othello.RetiredTurn == Turn.First ? -1 : -2;
-                logForReturnLog.KeepALogOfGame(othello.Turn, new Point(-5, retiredTurnNumber));
-            }
-
-            var logLines = logForReturnLog.LogOfGame.Select((log) => $"{log.IsPass}@{log.Turn}@{log.Point.X}{log.Point.Y}");
-            var logString = String.Join(",", logLines);
+            var logForReturnLog = new Log(othello);
+            var logString = LogSerializer.Serialize(logForReturnLog.LogOfGame);
 
             this.ReturnLogEvent(roomNumber, identificationNumber);
 
@@ -390,37 +272,10 @@ namespace MyOthelloWeb.Controllers
 
             var othello = OthelloManager.OthelloRooms[roomNumber].Model;
 
-            var listOfLog = LoadFiles(logString);
+            var listOfLog = LogSerializer.Deserialize(logString);
             othello.ReCreateOthelloSituation(listOfLog);
 
             othello.ChangeGameState(GameState.SelectSide);
-        }
-
-        private IList<LogOfGame> LoadFiles(String log)
-        {
-            var listOfLog = new List<LogOfGame>();
-            var logInfoArr = log.Split(',');
-            foreach (var line in logInfoArr)
-            {
-                var splitLine = line.Split('@');
-                var isPass = splitLine[0] == "True" ? true : false;
-                var turn = splitLine[1] == "First" ? Turn.First : Turn.Second;
-                String x;
-                String y;
-                if (isPass == true)
-                {
-                    x = splitLine[2].Substring(0, 2);
-                    y = splitLine[2].Substring(2, 2);
-                }
-                else
-                {
-                    x = splitLine[2][0].ToString();
-                    y = splitLine[2][1].ToString();
-                }
-                var point = new Point(Int32.Parse(x), Int32.Parse(y));
-                listOfLog.Add(new LogOfGame(isPass, turn, point));
-            }
-            return listOfLog;
         }
     }
 }

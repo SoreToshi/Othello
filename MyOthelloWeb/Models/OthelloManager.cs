@@ -1,15 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using OthelloClassLibrary.Models;
 
-namespace OthelloClassLibrary.Models
+namespace MyOthelloWeb.Models
 {
-    public class OthelloManager
+    public static class OthelloManager
     {
+        public static readonly Int32 BoardSize = 8;
 
-        public static Int32 BoardSize = 8;
-
-        public static IDictionary<Int32, RoomInformationForServer> OthelloRooms = new Dictionary<Int32, RoomInformationForServer>();
+        private static IDictionary<Int32, RoomInformationForServer> OthelloRooms = new Dictionary<Int32, RoomInformationForServer>();
 
         static OthelloManager()
         {
@@ -24,6 +21,17 @@ namespace OthelloClassLibrary.Models
                 OthelloRooms.Add(roomNumber, new RoomInformationForServer(gameMode));
             }
         }
+
+        public static IList<KeyValuePair<Int32, RoomInformationForServer>> Rooms {
+            get {
+                return OthelloRooms.ToList();
+            }
+        }
+
+        public static RoomInformationForServer? GetRoom(Int32 roomNumber) { 
+            return OthelloRooms[roomNumber];
+        }
+
         public static void RecreateRoomInformationForServer(Int32 roomNumber)
         {
             var gameMode = OthelloRooms[roomNumber].Model.GameMode;
@@ -60,6 +68,12 @@ namespace OthelloClassLibrary.Models
         {
             this.Model = new MyOthelloModel(OthelloManager.BoardSize, ThemeColor.Default);
             this.Model.SelectGameMode(gameMode);
+        }
+
+        /// <exception cref="InvalidOperationException"></exception>
+        public IdentificationNumber FindAvailableIdentificationNumber()
+        {
+            return this.PlayerInfos.First((playerInfo) => playerInfo.IsPlayerAccess == false).IdentificationNumber;
         }
     }
 

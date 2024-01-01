@@ -47,7 +47,6 @@
     <div class="select-room-space-wrapper">
         <div class="othello-room-space">
             <div> 部屋を選んでください</div>
-            ***
             @foreach (var roomInfo in this.OthelloRooms)
             {
                 <div class="othello-room-space-inside @NumberOfConnectionsColor(roomInfo.Value.NumberOfConnections, roomInfo.Value.GameModeOfRoom)" @onclick="() => SelectOthelloRoom(roomInfo.Key)">

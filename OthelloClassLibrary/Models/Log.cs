@@ -7,6 +7,32 @@ namespace OthelloClassLibrary.Models
     {
         public List<LogOfGame> LogOfGame { get; private set; } = new List<LogOfGame>();
 
+        public Log() {}
+
+        public Log(MyOthelloModel othello) {
+            if (othello.Log.LogOfGame.Count != 0)
+            {
+                foreach (var log in othello.Log.LogOfGame)
+                {
+                    this.KeepALogOfGame(log.IsPass, log.Turn, log.Point);
+                }
+            }
+
+            // セレクトサイド状態の時に-8,-8を入れることで受け取ったクライアントがSelectSide状態であることを反映できます。
+            if (othello.GameState == GameState.SelectSide)
+            {
+                this.KeepALogOfGame(othello.Turn, new Point(-8, -8));
+            }
+
+            // マッチリタイア状態の時にLogのPointにxに-5を入れることで受け取ったクライアントがリタイア状態であることを、yに-1,-2を入れることで
+            // 先手と後手どちらがリタイアしたかを反映できます。
+            if (othello.GameState == GameState.MatchRetired)
+            {
+                var retiredTurnNumber = othello.RetiredTurn == Turn.First ? -1 : -2;
+                this.KeepALogOfGame(othello.Turn, new Point(-5, retiredTurnNumber));
+            }
+        }
+
         public void KeepALogOfGame(Boolean isPass , Turn turn, Point pointToPut)
         {
             this.LogOfGame.Add(new LogOfGame(isPass,turn,pointToPut));

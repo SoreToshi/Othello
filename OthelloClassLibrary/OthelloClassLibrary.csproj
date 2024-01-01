@@ -53,7 +53,6 @@
     <Compile Include="Models\Log.cs" />
     <Compile Include="Models\MyOthelloModel.cs" />
     <Compile Include="Models\OthelloBoard.cs" />
-    <Compile Include="Models\OthelloManager.cs" />
     <Compile Include="Models\OthelloPiece.cs" />
     <Compile Include="Models\Point.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
