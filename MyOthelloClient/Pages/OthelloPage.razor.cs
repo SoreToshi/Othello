@@ -10,119 +10,16 @@ namespace MyOthelloClient.Pages
     public partial class OthelloPage
     {
         private readonly ClientManager ClientManager = new ClientManager();
-        private MyOthelloModel Othello
-        {
-            get
-            {
-                return ClientManager.Model;
-            }
-        }
-        private Int32 OthelloRoomNumber
-        {
-            get
-            {
-                return ClientManager.OthelloRoomNumber;
-            }
-            set
-            {
-                ClientManager.OthelloRoomNumber = value;
-            }
-        }
 
-        private String ID
-        {
-            get
-            {
-                return this.ClientManager.ID;
-            }
-        }
-
-
-        private Dictionary<Int32, RoomInformationForClient> OthelloRooms
-        {
-            get
-            {
-                return this.ClientManager.OthelloRooms;
-            }
-        }
-
-        private Turn MyTurn
-        {
-            get
-            {
-                return this.ClientManager.MyTurn;
-            }
-        }
-        private PlayerStatusInSelect ModeSelectPlayerStatus
-        {
-            get
-            {
-                return ClientManager.PlayerStatusInSelect;
-            }
-            set
-            {
-                ClientManager.PlayerStatusInSelect = value;
-            }
-        }
         private IDictionary<Int32, Int32> RoomCapacity
         {
             get
             {
-                return this.OthelloRooms.ToDictionary(othelloRooms => othelloRooms.Key, othelloRooms => othelloRooms.Value.GameModeOfRoom == GameMode.VsHuman ? 2 : 1);
-            }
-        }
-        private Int32 NumberOfBlackPiece
-        {
-            get
-            {
-                return this.Othello.NumberOfBlackPiece;
-            }
-        }
-        private Int32 NumberOfWhitePiece
-        {
-            get
-            {
-                return this.Othello.NumberOfWhitePiece;
-            }
-        }
-        private IList<LogOfGame> LogOfGame
-        {
-            get
-            {
-                return this.Othello.Log.LogOfGame;
-            }
-        }
-        private GameState GameState
-        {
-            get
-            {
-                return this.Othello.GameState;
-            }
-        }
-        private IList<Int32> SquareNumberListCanBePut
-        {
-            get
-            {
-                return this.Othello.SquareNumberListCanbePut;
-            }
-        }
-        private IList<ThemeColor> ThemeColorList
-        {
-            get
-            {
-                return this.Othello.ThemeColorList;
-            }
-        }
-        private IEnumerable<Tuple<OthelloPiece, Int32>> Pieces
-        {
-            get
-            {
-                return this.Othello.Pieces.Select((piece, i) => Tuple.Create(piece, i));
+                return this.ClientManager.OthelloRooms.ToDictionary(othelloRooms => othelloRooms.Key, othelloRooms => othelloRooms.Value.GameModeOfRoom == GameMode.VsHuman ? 2 : 1);
             }
         }
 
-
-        private String OthelloTheme = "default";
+        private String OthelloTheme { get; set; } = "default";
 
         private event Action UpdateNumberOfConnectionEvent;
         private event Action<Int32> SelectOthelloRoomEvent;
@@ -130,11 +27,7 @@ namespace MyOthelloClient.Pages
 
         public OthelloPage()
         {
-            this.SetViewEventInOthello();
-
-            ClientManager.PlayerStatusInSelectChangedEvent += (playerStatusInSelect) => this.StateHasChanged();
-            this.ClientManager.UpdateRoomsInformationEvent += this.StateHasChanged;
-            ClientManager.RecreateOthelloEvent += this.SetViewEventInOthello;
+            this.ClientManager.OnChangeState += this.StateHasChanged;
 
             this.SelectOthelloRoomEvent += (roomNumber) => this.StateHasChanged();
             this.UpdateNumberOfConnectionEvent += this.StateHasChanged;
@@ -143,12 +36,6 @@ namespace MyOthelloClient.Pages
             this.ClientManager.UpdateRoomsInformation();
         }
 
-        private void SetViewEventInOthello()
-        {
-            this.Othello.GameStateChangedEvent += (state, turn) => this.StateHasChanged();
-            this.Othello.TurnEndEvent += this.StateHasChanged;
-            this.Othello.RecreateOthelloSituationEvent += this.StateHasChanged;
-        }
         private async void UpdateNumberOfConnections()
         {
             this.ClientManager.UpdateNumberOfConnections(await HitApi.FetchNumberOfConnections());
@@ -165,57 +52,60 @@ namespace MyOthelloClient.Pages
             // IDを受け取る前にIDを必要とする行程に進んでしまうためディレイをかけて待ちます。
             this.ClientManager.FetchID(roomNumber);
             await Task.Delay(100);
-            this.OthelloRoomNumber = roomNumber;
+            this.ClientManager.OthelloRoomNumber = roomNumber;
 
             var polling = new Polling();
-            polling.PollingToReflectServerSituation(this.OthelloRoomNumber, this.ID);
+            polling.ReflectServerSituation(this.ClientManager, (logOfGameList) => {
+                ClientManager.RecreateOthelloModel();
+                this.ClientManager.ReCreateOthelloSituation(logOfGameList);
+            });
 
-            this.SelectOthelloRoomEvent?.Invoke(OthelloRoomNumber);
+            this.SelectOthelloRoomEvent?.Invoke(this.ClientManager.OthelloRoomNumber);
         }
 
 
         private void StartGame(IPlayer player)
         {
-            if (this.ModeSelectPlayerStatus == PlayerStatusInSelect.Waiting)
+            if (this.ClientManager.PlayerStatusInSelect == PlayerStatusInSelect.Waiting)
             {
                 return;
             }
-            this.ClientManager.BuildModeSelectPlayerSituation(this.OthelloRoomNumber, player);
+            this.ClientManager.BuildModeSelectPlayerSituation(this.ClientManager.OthelloRoomNumber, player);
 
-            HitApi.StartServerOthello(this.OthelloRoomNumber, player, this.ID);
+            HitApi.StartServerOthello(this.ClientManager.OthelloRoomNumber, player, this.ClientManager.Id);
         }
 
         private void PutPiece(Int32 squareNumber)
         {
-            if (this.GameState != GameState.MatchRemaining)
+            if (this.ClientManager.GameState != GameState.MatchRemaining)
             {
                 return;
             }
-            if (this.MyTurn != this.Othello.Turn)
+            if (this.ClientManager.MyTurn != this.ClientManager.CurrentTurn)
             {
                 return;
             }
 
-            HitApi.PutPiece(this.OthelloRoomNumber, squareNumber);
+            HitApi.PutPiece(this.ClientManager.OthelloRoomNumber, squareNumber);
         }
 
         private void RestartMatch()
         {
-            HitApi.RestartServerOthello(this.OthelloRoomNumber);
+            HitApi.RestartServerOthello(this.ClientManager.OthelloRoomNumber);
         }
 
         private void RetireMatch()
         {
-            if (this.GameState != GameState.MatchRemaining)
+            if (this.ClientManager.GameState != GameState.MatchRemaining)
             {
                 return;
             }
-            HitApi.RetireServerOthello(this.OthelloRoomNumber, this.MyTurn);
+            HitApi.RetireServerOthello(this.ClientManager.OthelloRoomNumber, this.ClientManager.MyTurn);
         }
 
         private async void BackFromLog(Int32 numberOfLog)
         {
-            string url = $"https://localhost:7146/api/backfromlog{this.OthelloRoomNumber}";
+            string url = $"https://localhost:7146/api/backfromlog{this.ClientManager.OthelloRoomNumber}";
             var jsonString = JsonSerializer.Serialize(numberOfLog);
             var content = new StringContent(jsonString, Encoding.UTF8, "application/json");
 
@@ -227,8 +117,8 @@ namespace MyOthelloClient.Pages
             ClientManager.RecreateOthelloModel();
 
             // ルームセレクトの時自身のオセロルームナンバーを初期値の0に戻します。
-            this.OthelloRoomNumber = 0;
-            this.ModeSelectPlayerStatus = PlayerStatusInSelect.Nothing;
+            this.ClientManager.OthelloRoomNumber = 0;
+            this.ClientManager.PlayerStatusInSelect = PlayerStatusInSelect.Nothing;
 
             this.MoveToRoomSelectEvent?.Invoke();
         }
@@ -259,7 +149,7 @@ namespace MyOthelloClient.Pages
 
         private async void UpLoadLogFile(InputFileChangeEventArgs e)
         {
-            string url = $"https://localhost:7146/api/loadfile{this.OthelloRoomNumber}";
+            string url = $"https://localhost:7146/api/loadfile{this.ClientManager.OthelloRoomNumber}";
 
             var file = e.GetMultipleFiles(1).FirstOrDefault();
             if (file == null)
@@ -286,7 +176,7 @@ namespace MyOthelloClient.Pages
         }
         private async Task<Stream> GetFileStream()
         {
-            var logOfGameList = await HitApi.FetchLogOnTheServer(this.OthelloRoomNumber, this.ID);
+            var logOfGameList = await HitApi.FetchLogOnTheServer(this.ClientManager.OthelloRoomNumber, this.ClientManager.Id);
             var logLines = logOfGameList.Select((log) => $"{log.IsPass}@{log.Turn}@{log.Point.X}{log.Point.Y}");
             return new MemoryStream(Encoding.UTF8.GetBytes(String.Join(",", logLines)));
         }

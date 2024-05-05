@@ -197,7 +197,7 @@ namespace OthelloClassLibrary.Models
                 this.PutPiece(squareNumber);
             }
         }
-        public void ReCreateOthelloSituation(IList<LogOfGame> logOfGame)
+        public void ReCreateOthelloSituation(IEnumerable<LogOfGame> logOfGame)
         {
             this.SetPlayer(new Human(Turn.First));
             this.SetPlayer(new Human(Turn.Second));

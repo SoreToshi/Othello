@@ -5,11 +5,37 @@
 @inject IJSRuntime JS
 
 @code {
+    private Dictionary<Int32, RoomInformationForClient> OthelloRooms { get { return this.ClientManager.OthelloRooms; } }
+
+    private Int32 OthelloRoomNumber { get { return this.ClientManager.OthelloRoomNumber; } }
+
+    private IEnumerable<OthelloPiece> Pieces { get { return this.ClientManager.Pieces; } }
+
+    private IEnumerable<Int32> SquareNumberListCanbePut { get { return this.ClientManager.SquareNumberListCanbePut; } }
+
+    private GameState GameState { get { return this.ClientManager.GameState; } }
+
+    private PlayerStatusInSelect PlayerStatus { get { return this.ClientManager.PlayerStatusInSelect; } }
+
+    private IEnumerable<LogOfGame> LogOfGame { get { return this.ClientManager.LogOfGame; } }
+
+    private Int32 BlackPieceCount { get { return this.ClientManager.BlackPieceCount; } }
+
+    private Int32 WhitePieceCount { get { return this.ClientManager.WhitePieceCount; } }
+
+    private Int32 DiffPeiceCount { get { return Math.Abs(BlackPieceCount - WhitePieceCount); } }
+
+    private Turn CurrentTurn { get { return this.ClientManager.CurrentTurn; } }
+
+    private Turn RetiredTurn { get { return this.ClientManager.RetiredTurn; } }
+
+    private IEnumerable<ThemeColor> ThemeColorList { get { return this.ClientManager.ThemeColorList; } }
+
     private String StringOfTurn
     {
         get
         {
-            return Othello.Turn == Turn.First ? "先手" : "後手";
+            return this.ClientManager.CurrentTurn == Turn.First ? "先手" : "後手";
         }
     }
 
@@ -72,14 +98,14 @@ else
                     <div class="border2" @onclick="() => StartGame(new Human(Turn.First))">Play First</div>
                     <div @onclick="() => StartGame(new Human(Turn.Second))">Play Second</div>
                 </div>
-                @if (ModeSelectPlayerStatus != PlayerStatusInSelect.Nothing)
+                @if (PlayerStatus != PlayerStatusInSelect.Nothing)
                 {
                     <div class="select-side-state back-ground4">
-                        @if (ModeSelectPlayerStatus == PlayerStatusInSelect.CantSelect)
+                        @if (PlayerStatus == PlayerStatusInSelect.CantSelect)
                         {
                             <div>選択した先攻後攻は対戦相手によって選ばれています</div>
                         }
-                        @if (ModeSelectPlayerStatus == PlayerStatusInSelect.Waiting)
+                        @if (PlayerStatus == PlayerStatusInSelect.Waiting)
                         {
                             <div>対戦相手を待っています</div>
                         }
@@ -90,34 +116,30 @@ else
             {
                 <div class="othello-information-inside1 border1 back-ground1">
                     <div>現在のターン</div>
-                    <div>@StringOfTurn</div>
+                    <div>@(CurrentTurn == Turn.First ? "先手" : "後手")</div>
                 </div>
             }
             else if (GameState == GameState.MatchRetired)
             {
                 <div class="othello-information-inside2 border1 back-ground1">
-                    <div class="information-items">@(Othello.RetiredTurn == Turn.First ? "後手の勝ち" : "先手の勝ち")</div>
+                    <div class="information-items">@(RetiredTurn == Turn.First ? "後手の勝ち" : "先手の勝ち")</div>
                     <div>&nbsp;</div>
-                    <div class="information-items">@(Othello.RetiredTurn == Turn.First ? "先手" : "後手")がリタイアしました</div>
+                    <div class="information-items">@(RetiredTurn == Turn.First ? "先手" : "後手")がリタイアしました</div>
                 </div>
             }
             else if (GameState == GameState.MatchOver)
             {
                 <div class="othello-information-inside2 border1 back-ground1">
                     <div class="information-items">
-                        @(
-                            NumberOfBlackPiece > NumberOfWhitePiece ?
-                            $"{NumberOfBlackPiece - NumberOfWhitePiece}" :
-                            $"{NumberOfWhitePiece - NumberOfBlackPiece}"
-                            )枚差で
+                        @(DiffPeiceCount)枚差で
                     </div>
                     <div>&nbsp;</div>
                     <div class="information-items">
-                        @if (NumberOfBlackPiece == NumberOfWhitePiece)
+                        @if (BlackPieceCount == WhitePieceCount)
                         {
                             @:引き分け
                         }
-                        else if (NumberOfBlackPiece > NumberOfWhitePiece)
+                        else if (BlackPieceCount > WhitePieceCount)
                         {
                             @:先手の勝ち
                         }
@@ -141,24 +163,22 @@ else
             else if (GameState == GameState.MatchRemaining || GameState == GameState.SelectSide)
             {
                 <ul class="othello-information-inside3 border1 back-ground1">
-                    @for (var i = 0; i < LogOfGame.Count; i++)
+                    @foreach (var (log, i) in LogOfGame.Select((log, i) => (log, i)))
                     {
-                        var numberOfLog = i;
-                        var logOfGame = LogOfGame[numberOfLog];
-                        <li class="log-items" @onclick="() => BackFromLog(numberOfLog)">
-                            @(logOfGame.Turn == Turn.First ? "先手が" : "後手が")
-                            @(logOfGame.IsPass == true ? "パスしました" : $"[{logOfGame.Point.Y + 1},{logOfGame.Point.X + 1}]に石を置きました")
+                        <li class="log-items" @onclick="() => BackFromLog(i)">
+                            @(log.Turn == Turn.First ? "先手が" : "後手が")
+                            @(log.IsPass == true ? "パスしました" : $"[{log.Point.Y + 1},{log.Point.X + 1}]に石を置きました")
                         </li>
                     }
                 </ul>
             }
         </div>
         <div class="othello-board">
-            @foreach (var (piece, squareNumber) in Pieces)
+            @foreach (var (piece, squareNumber) in Pieces.Select((piece, i) => (piece, i)))
             {
                 @if (piece == null)
                 {
-                    @if (SquareNumberListCanBePut.Contains(squareNumber))
+                    @if (SquareNumberListCanbePut.Contains(squareNumber))
                     {
                         <div class="back-ground5 border4" @onclick="() => PutPiece(squareNumber)"></div>
                     }
@@ -187,11 +207,11 @@ else
         <div class="othello-information">
             <div class="number-of-piece-space border3 back-ground2">
                 <div class="piece-color">先手</div>
-                <div class="number-of-piece">@NumberOfBlackPiece 枚</div>
+                <div class="number-of-piece">@BlackPieceCount 枚</div>
             </div>
             <div class="number-of-piece-space border3 back-ground3">
                 <div class="piece-color">後手</div>
-                <div class="number-of-piece">@NumberOfWhitePiece 枚</div>
+                <div class="number-of-piece">@WhitePieceCount 枚</div>
             </div>
             <div class="change-color-space back-ground4 border3">
                 @foreach (var themeColor in ThemeColorList)
