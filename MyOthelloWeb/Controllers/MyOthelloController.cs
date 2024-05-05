@@ -8,9 +8,9 @@ namespace MyOthelloWeb.Controllers
     [Route("/api")]
     public class MyOthelloController : ControllerBase
     {
-        private event Action<Int32, IdentificationNumber> ReturnIdentificationNumberEvent;
+        private event Action<Int32, String> ReturnIdentificationNumberEvent;
         private event Action<Int32> InvertIsAccessEvent;
-        private event Action<Int32, IdentificationNumber> ReturnLogEvent;
+        private event Action<Int32, String> ReturnLogEvent;
         public MyOthelloController()
         {
             var accessMonitor = new AccessMonitor();
@@ -44,7 +44,7 @@ namespace MyOthelloWeb.Controllers
             var room = OthelloManager.GetRoom(roomNumber);
             if (room == null)
             {
-                return "NoIdentificationNumberLeft";
+                return "NoRoomExist";
             }
 
             try
@@ -54,27 +54,45 @@ namespace MyOthelloWeb.Controllers
                 this.ReturnIdentificationNumberEvent?.Invoke(roomNumber, identificationNumber);
                 return identificationNumber.ToString();
             }
-            catch (InvalidCastException) 
+            catch (InvalidCastException)
             {
                 return "NoIdentificationNumberLeft";
             }
         }
 
-        private void InvertIsAccess(Int32 roomNumber, IdentificationNumber identificationNumber)
+        private void InvertIsAccess(Int32 roomNumber, String identificationNumber)
         {
-            var playerInfo = OthelloManager.OthelloRooms[roomNumber].PlayerInfos.First(infos => infos.IdentificationNumber == identificationNumber);
-            
-            playerInfo.InvertIsAccess();
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return;
+            }
 
-            // 接続した際に、その後接続を継続しているか監視するメソッドをイベントで呼び出します。
-            this.InvertIsAccessEvent?.Invoke(roomNumber);
+            try
+            {
+                var playerInfo = room.PlayerInfos.First(infos => infos.ID == identificationNumber);
+
+                playerInfo.InvertIsAccess();
+
+                // 接続した際に、その後接続を継続しているか監視するメソッドをイベントで呼び出します。
+                this.InvertIsAccessEvent?.Invoke(roomNumber);
+            }
+            catch (InvalidCastException)
+            {
+                return;
+            }
         }
 
         [HttpGet]
         [Route("fetchlog{RoomNumber}&{IdentificationNumber}")]
-        public String ReturnLog(Int32 roomNumber, IdentificationNumber identificationNumber)
+        public String ReturnLog(Int32 roomNumber, String identificationNumber)
         {
-            var othello = OthelloManager.OthelloRooms[roomNumber].Model;
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return "NoRoomExist";
+            }
+            var othello = room.Model;
             var logForReturnLog = new Log(othello);
             var logString = LogSerializer.Serialize(logForReturnLog.LogOfGame);
 
@@ -82,22 +100,38 @@ namespace MyOthelloWeb.Controllers
 
             return logString;
         }
-        private void AddAccessTime(Int32 roomNumber, IdentificationNumber identificationNumber)
+        private void AddAccessTime(Int32 roomNumber, String identificationNumber)
         {
-            var playerInfo = OthelloManager.OthelloRooms[roomNumber].PlayerInfos.First(
-                (info) => info.IdentificationNumber == identificationNumber);
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return;
+            }
+            try
+            {
+                var playerInfo = room.PlayerInfos.First(
+                (info) => info.ID == identificationNumber);
 
-            playerInfo.AddAccessTime();
+                playerInfo.AddAccessTime();
+            }
+            catch (InvalidCastException)
+            {
+                return;
+            }
         }
 
         [HttpGet]
         [Route("start{RoomNumber}&{Turn}&{IdentificationNumber}")]
-        public void Start(Int32 roomNumber, Turn turn, IdentificationNumber identificationNumber)
+        public void Start(Int32 roomNumber, Turn turn, String identificationNumber)
         {
-            var othello = OthelloManager.OthelloRooms[roomNumber].Model;
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return;
+            }
             var player = turn == Turn.First ? new Human(Turn.First) : new Human(Turn.Second);
             // Cpu戦の処理
-            if (othello.GameMode == GameMode.VsCpu)
+            if (room.Model.GameMode == GameMode.VsCpu)
             {
                 this.StartVsCpuProgress(roomNumber, player, identificationNumber);
             }
@@ -107,10 +141,15 @@ namespace MyOthelloWeb.Controllers
                 this.StartVsHumanProgress(roomNumber, player, identificationNumber);
             }
         }
-        private void StartVsCpuProgress(Int32 roomNumber, IPlayer player, IdentificationNumber identificationNumber)
+        private void StartVsCpuProgress(Int32 roomNumber, IPlayer player, String identificationNumber)
         {
-            var othello = OthelloManager.OthelloRooms[roomNumber].Model;
-            var playerInfo = OthelloManager.OthelloRooms[roomNumber].PlayerInfos.First((info) => info.IdentificationNumber == identificationNumber);
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return;
+            }
+            var othello = room.Model;
+            var playerInfo = room.PlayerInfos.First((info) => info.ID == identificationNumber);
             playerInfo.Turn = player.Turn;
             othello.SetPlayer(player);
             var playerCpu = new Cpu(player.Turn == Turn.First ? Turn.Second : Turn.First);
@@ -118,11 +157,15 @@ namespace MyOthelloWeb.Controllers
 
             othello.ChangeGameState(GameState.MatchRemaining);
         }
-
-        private void StartVsHumanProgress(Int32 roomNumber, IPlayer player, IdentificationNumber identificationNumber)
+        private void StartVsHumanProgress(Int32 roomNumber, IPlayer player, String identificationNumber)
         {
-            var othello = OthelloManager.OthelloRooms[roomNumber].Model;
-            var playerInfo = OthelloManager.OthelloRooms[roomNumber].PlayerInfos.First((info) => (info.IdentificationNumber == identificationNumber));
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return;
+            }
+            var othello = room.Model;
+            var playerInfo = room.PlayerInfos.First((info) => (info.ID == identificationNumber));
             // 選択した先攻後攻が選ばれていた場合の処理
             if (this.IsSideSelected(roomNumber, player.Turn))
             {
@@ -133,7 +176,7 @@ namespace MyOthelloWeb.Controllers
             playerInfo.InvertIsTurnSelected();
             playerInfo.Turn = player.Turn;
 
-            if (IsOpponentSelected(roomNumber, player.Turn , identificationNumber) == false)
+            if (IsOpponentSelected(roomNumber, identificationNumber) == false)
             {
                 return;
             }
@@ -142,24 +185,37 @@ namespace MyOthelloWeb.Controllers
         }
         private Boolean IsSideSelected(Int32 roomNumber, Turn turn)
         {
-            var playerInfos = OthelloManager.OthelloRooms[roomNumber].PlayerInfos.ToList();
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return　false;
+            }
+            var playerInfos = room.PlayerInfos.ToList();
             return playerInfos.Exists(info => info.IsTurnSelected && info.Turn == turn);
         }
-        private Boolean IsOpponentSelected(Int32 roomNumber, Turn turn, IdentificationNumber identificationNumber)
+        private Boolean IsOpponentSelected(Int32 roomNumber, String identificationNumber)
         {
-
-            var playerInfos = OthelloManager.OthelloRooms[roomNumber].PlayerInfos;
-            var opponentInfos = playerInfos.Where((info) => (info.IdentificationNumber != identificationNumber));
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return false;
+            }
+            var playerInfos = room.PlayerInfos;
+            var opponentInfos = playerInfos.Where((info) => (info.ID != identificationNumber));
 
             return opponentInfos.All(info => info.IsTurnSelected);
         }
 
         [HttpGet]
         [Route("fetchplayerstatus{RoomNumber}&{Turn}&{IdentificationNumber}")]
-        public String ReturnPlayerStatus(Int32 roomNumber, Turn turn, IdentificationNumber identificationNumber)
+        public String ReturnPlayerStatus(Int32 roomNumber, Turn turn, String identificationNumber)
         {
-
-            var othello = OthelloManager.OthelloRooms[roomNumber].Model;
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return "NoRoomExist";
+            }
+            var othello = room.Model;
             var playerTurn = turn;
 
             if (othello.GameMode == GameMode.VsCpu)
@@ -174,10 +230,15 @@ namespace MyOthelloWeb.Controllers
 
             return "GameModeDoesNotExist";
         }
-
-        private String FindVsHumanPlayerStatus(Int32 roomNumber, Turn playerTurn, IdentificationNumber identificationNumber)
+        // エラー処理
+        private String FindVsHumanPlayerStatus(Int32 roomNumber, Turn playerTurn, String identificationNumber)
         {
-            var playerInfo = OthelloManager.OthelloRooms[roomNumber].PlayerInfos.First((info) => (info.IdentificationNumber == identificationNumber));
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return "NoRoomExist";
+            }
+            var playerInfo = room.PlayerInfos.First((info) => (info.ID == identificationNumber));
             // 選ばれていた場合の処理
             if (this.IsSideSelected(roomNumber, playerTurn))
             {
@@ -199,11 +260,15 @@ namespace MyOthelloWeb.Controllers
 
         [HttpGet]
         [Route("fetchopponentaction{RoomNumber}&{IdentificationNumber}")]
-        public String ReturnOpponentAction(Int32 roomNumber, IdentificationNumber identificationNumber)
+        public String ReturnOpponentAction(Int32 roomNumber, String identificationNumber)
         {
-
-            var playerInfos = OthelloManager.OthelloRooms[roomNumber].PlayerInfos;
-            var opponentInfos = playerInfos.Where((info) => (info.IdentificationNumber != identificationNumber));
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return "NoRoomExist";
+            }
+            var playerInfos = room.PlayerInfos;
+            var opponentInfos = playerInfos.Where((info) => (info.ID != identificationNumber));
 
             return opponentInfos.All((info) => (info.IsTurnSelected)) ? "SelectedSide" : "DoNothing";
         }
@@ -212,7 +277,12 @@ namespace MyOthelloWeb.Controllers
         [HttpPost]
         public void PutPiece(Int32 roomNumber, [FromBody] Int32 squareNumber)
         {
-            var othello = OthelloManager.OthelloRooms[roomNumber].Model;
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return;
+            }
+            var othello = room.Model;
             if (othello.HasRightToPut() == false)
             {
                 return;
@@ -224,9 +294,14 @@ namespace MyOthelloWeb.Controllers
         [Route("restart{RoomNumber}")]
         public void RestartOthello(Int32 roomNumber)
         {
-            var othello = OthelloManager.OthelloRooms[roomNumber].Model;
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return;
+            }
+            var othello = room.Model;
             var gameMode = othello.GameMode;
-            var playerInfos = OthelloManager.OthelloRooms[roomNumber].PlayerInfos;
+            var playerInfos = room.PlayerInfos;
             foreach (var playerInfo in playerInfos)
             {
                 if (playerInfo.IsTurnSelected)
@@ -234,14 +309,19 @@ namespace MyOthelloWeb.Controllers
                     playerInfo.InvertIsTurnSelected();
                 }
             }
-            OthelloManager.OthelloRooms[roomNumber].RecreateOthello(gameMode);
+            room.RecreateOthello(gameMode);
         }
 
         [HttpGet]
         [Route("retire{RoomNumber}&{RetireSideTurn}")]
         public void RetireMatch(Int32 roomNumber, Turn retireSideTurn)
         {
-            var othello = OthelloManager.OthelloRooms[roomNumber].Model;
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return;
+            }
+            var othello = room.Model;
             othello.RetiredTurn = retireSideTurn;
             othello.ChangeGameState(GameState.MatchRetired);
         }
@@ -250,7 +330,12 @@ namespace MyOthelloWeb.Controllers
         [Route("backfromlog{RoomNumber}")]
         public void BackFromLog(Int32 roomNumber, [FromBody] Int32 numberOfLog)
         {
-            var othello = OthelloManager.OthelloRooms[roomNumber].Model;
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return;
+            }
+            var othello = room.Model;
             othello.EraceLogFromSpecifiedTurn(numberOfLog);
 
             var previousLogOfGame = othello.Log.LogOfGame;
@@ -260,7 +345,7 @@ namespace MyOthelloWeb.Controllers
             this.RestartOthello(roomNumber);
 
             // RestartOthelloでnewされるため新しい変数に代入しなおします。
-            var newOthello = OthelloManager.OthelloRooms[roomNumber].Model;
+            var newOthello = room.Model;
             newOthello.ReCreateOthelloSituation(previousLogOfGame, previousPlayerFirst, previousPlayerSecond);
         }
 
@@ -270,7 +355,12 @@ namespace MyOthelloWeb.Controllers
         {
             this.RestartOthello(roomNumber);
 
-            var othello = OthelloManager.OthelloRooms[roomNumber].Model;
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return;
+            }
+            var othello = room.Model;
 
             var listOfLog = LogSerializer.Deserialize(logString);
             othello.ReCreateOthelloSituation(listOfLog);

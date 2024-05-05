@@ -7,12 +7,17 @@ namespace MyOthelloWeb.Models
     {
         public void MonitorAccessTime(Int32 roomNumber)
         {
-            if (OthelloManager.OthelloRooms[roomNumber].NumberOfConnection > 1)
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return;
+            }
+            if (room.NumberOfConnection > 1)
             {
                 return;
             }
 
-            var othelloGameMode = OthelloManager.OthelloRooms[roomNumber].Model.GameMode;
+            var othelloGameMode = room.Model.GameMode;
 
             if (othelloGameMode == GameMode.VsCpu)
             {
@@ -28,7 +33,12 @@ namespace MyOthelloWeb.Models
         {
             // client側のpollingTimerよりこのタイマーは遅くします。
             var monitorAccessTimer = new Timer(4000); // msec
-            var playerInfo = OthelloManager.OthelloRooms[roomNumber].PlayerInfos[0];
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return;
+            }
+            var playerInfo = room.PlayerInfos[0];
             var oldPlayerAccessTime = 0;
 
             monitorAccessTimer.Elapsed += (sender, e) =>
@@ -50,8 +60,13 @@ namespace MyOthelloWeb.Models
         {
             // client側のpollingTimerよりこのタイマーは遅くします。
             var monitorAccessTimer = new Timer(4000); // msec
-            var playerInfos = OthelloManager.OthelloRooms[roomNumber].PlayerInfos;
-            var othello = OthelloManager.OthelloRooms[roomNumber].Model;
+            var room = OthelloManager.GetRoom(roomNumber);
+            if (room == null)
+            {
+                return;
+            }
+            var playerInfos = room.PlayerInfos;
+            var othello = room.Model;
             var oldPlayerAccessTimeList = new List<Int32>();
             foreach (var playerInfo in playerInfos)
             {
@@ -64,7 +79,7 @@ namespace MyOthelloWeb.Models
                 {
                     if (this.IsPlayerDisconected(playerInfo.value, oldPlayerAccessTimeList[playerInfo.index]))
                     {
-                        this.DisconectedProgress(playerInfo.value, othello.GameState);
+                        playerInfo.value.InvertIsAccess();
                     }
                 }
                 if (playerInfos.All(info => !info.IsPlayerAccess))
@@ -83,23 +98,6 @@ namespace MyOthelloWeb.Models
             };
 
             monitorAccessTimer.Start();
-        }
-        private void DisconectedProgress(PlayerAccessInfo playerInfo, GameState gameState)
-        {
-            playerInfo.InvertIsAccess();
-
-            if (!playerInfo.IsTurnSelected)
-            {
-                return;
-            }
-
-            // リタイア中新しく入ってきた人のターンを選べるようにすると、
-            // 対戦相手がまだリタイア画面にもかかわらずゲームが始まってしまうのでリターンします。
-            if (gameState == GameState.MatchRetired)
-            {
-                return;
-            }
-            playerInfo.InvertIsTurnSelected();
         }
 
         private Boolean IsPlayerDisconected(PlayerAccessInfo playerInfo, Int32 oldPlayerAccessTime)

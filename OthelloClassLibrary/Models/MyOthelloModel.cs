@@ -100,6 +100,7 @@ namespace OthelloClassLibrary.Models
         private event Action<Turn, Point> PutPieceEvent;
         private event Action<Boolean, Point, Turn> PassEvent;
         private event Action<Turn> TurnChangedEvent;
+        public event Action RecreateOthelloSituationEvent;
 
         public MyOthelloModel(Int32 boardSize, ThemeColor themeColor)
         {
@@ -206,6 +207,7 @@ namespace OthelloClassLibrary.Models
                 var squareNumber = OthelloBoard.PointToSquareNumber(log.Point);
                 this.PutPiece(squareNumber);
             }
+            this.RecreateOthelloSituationEvent?.Invoke();
         }
 
         public void EraceLogFromSpecifiedTurn(Int32 numberOfTurn)

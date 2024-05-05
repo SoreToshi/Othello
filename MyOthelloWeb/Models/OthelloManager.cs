@@ -60,7 +60,7 @@ namespace MyOthelloWeb.Models
             var maxCapacity = gameMode == GameMode.VsCpu ? 1 : 2;
             for (identificationNumber = 0; identificationNumber < maxCapacity; identificationNumber++)
             {
-                this.PlayerInfos.Add(new PlayerAccessInfo((IdentificationNumber)identificationNumber));
+                this.PlayerInfos.Add(new PlayerAccessInfo());
             }
         }
 
@@ -71,22 +71,23 @@ namespace MyOthelloWeb.Models
         }
 
         /// <exception cref="InvalidOperationException"></exception>
-        public IdentificationNumber FindAvailableIdentificationNumber()
+        public String FindAvailableIdentificationNumber()
         {
-            return this.PlayerInfos.First((playerInfo) => playerInfo.IsPlayerAccess == false).IdentificationNumber;
+            return this.PlayerInfos.First((playerInfo) => playerInfo.IsPlayerAccess == false).ID;
         }
     }
 
     public class PlayerAccessInfo
     {
-        public IdentificationNumber IdentificationNumber { get; private set; }
+        public String ID { get; private set; }
         public Boolean IsPlayerAccess { get; private set; }
         public Int32 PlayerAccessTime { get; private set; }
         public Boolean IsTurnSelected { get; private set; }
         public Turn Turn { get; set; }
-        public PlayerAccessInfo(IdentificationNumber identificationNumber)
+        // コンストラクタでIDをランダムに生成します。
+        public PlayerAccessInfo()
         {
-            this.IdentificationNumber = identificationNumber;
+            this.ID = Guid.NewGuid().ToString("N");
         }
 
         public void InvertIsAccess()
@@ -95,7 +96,7 @@ namespace MyOthelloWeb.Models
         }
         public void AddAccessTime()
         {
-            // 接続している限り増え続けていくのでMaxValueに到達したら0に戻します。
+            // 接続している限り増え続けていくのでMaxValue前に到達したら0に戻します。
             if (Int32.MaxValue - 1 < this.PlayerAccessTime)
             {
                 this.PlayerAccessTime = 0;
@@ -109,5 +110,4 @@ namespace MyOthelloWeb.Models
         }
     }
 
-    public enum IdentificationNumber { One, Two }
 }

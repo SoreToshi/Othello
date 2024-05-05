@@ -1,4 +1,5 @@
 ﻿@using OthelloClassLibrary.Models;
+@using MyOthelloClient.Models;
 @using System.Text;
 @page "/"
 @inject IJSRuntime JS
@@ -132,7 +133,7 @@ else
             @if (GameState == GameState.MatchOver || GameState == GameState.MatchRetired)
             {
                 <div class="othello-information-inside1 back-ground4 border1">
-                    <div class="restart-quit-items" @onclick="() => RestartServerOthello()">
+                    <div class="restart-quit-items" @onclick="() => RestartMatch()">
                         もう一度対戦
                     </div>
                 </div>
